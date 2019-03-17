@@ -1,0 +1,42 @@
+<additional>
+	<tlLogic id="(1,1)" type="static" programID="0" offset="0">
+        <phase duration="29" state="GGGGGggrrrrrrrGGGGGggrrrrrrr"/>
+        <phase duration="5" state="yyyyyyyrrrrrrryyyyyyyrrrrrrr"/>
+        <phase duration="6" state="rrrrrGGrrrrrrrrrrrrGGrrrrrrr"/>
+        <phase duration="5" state="rrrrryyrrrrrrrrrrrryyrrrrrrr"/>
+        <phase duration="29" state="rrrrrrrGGGGGggrrrrrrrGGGGGgg"/>
+        <phase duration="5" state="rrrrrrryyyyyyyrrrrrrryyyyyyy"/>
+        <phase duration="6" state="rrrrrrrrrrrrGGrrrrrrrrrrrrGG"/>
+        <phase duration="5" state="rrrrrrrrrrrryyrrrrrrrrrrrryy"/>
+    </tlLogic>
+	<tlLogic id="(1,2)" type="static" programID="0" offset="0">
+        <phase duration="29" state="GGGGGggrrrrrrrGGGGGggrrrrrrr"/>
+        <phase duration="5" state="yyyyyyyrrrrrrryyyyyyyrrrrrrr"/>
+        <phase duration="6" state="rrrrrGGrrrrrrrrrrrrGGrrrrrrr"/>
+        <phase duration="5" state="rrrrryyrrrrrrrrrrrryyrrrrrrr"/>
+        <phase duration="29" state="rrrrrrrGGGGGggrrrrrrrGGGGGgg"/>
+        <phase duration="5" state="rrrrrrryyyyyyyrrrrrrryyyyyyy"/>
+        <phase duration="6" state="rrrrrrrrrrrrGGrrrrrrrrrrrrGG"/>
+        <phase duration="5" state="rrrrrrrrrrrryyrrrrrrrrrrrryy"/>
+    </tlLogic>
+	<tlLogic id="(2,1)" type="static" programID="0" offset="0">
+        <phase duration="29" state="GGGGGggrrrrrrrGGGGGggrrrrrrr"/>
+        <phase duration="5" state="yyyyyyyrrrrrrryyyyyyyrrrrrrr"/>
+        <phase duration="6" state="rrrrrGGrrrrrrrrrrrrGGrrrrrrr"/>
+        <phase duration="5" state="rrrrryyrrrrrrrrrrrryyrrrrrrr"/>
+        <phase duration="29" state="rrrrrrrGGGGGggrrrrrrrGGGGGgg"/>
+        <phase duration="5" state="rrrrrrryyyyyyyrrrrrrryyyyyyy"/>
+        <phase duration="6" state="rrrrrrrrrrrrGGrrrrrrrrrrrrGG"/>
+        <phase duration="5" state="rrrrrrrrrrrryyrrrrrrrrrrrryy"/>
+    </tlLogic>
+	<tlLogic id="(2,2)" type="static" programID="0" offset="0">
+        <phase duration="29" state="GGGGGggrrrrrrrGGGGGggrrrrrrr"/>
+        <phase duration="5" state="yyyyyyyrrrrrrryyyyyyyrrrrrrr"/>
+        <phase duration="6" state="rrrrrGGrrrrrrrrrrrrGGrrrrrrr"/>
+        <phase duration="5" state="rrrrryyrrrrrrrrrrrryyrrrrrrr"/>
+        <phase duration="29" state="rrrrrrrGGGGGggrrrrrrrGGGGGgg"/>
+        <phase duration="5" state="rrrrrrryyyyyyyrrrrrrryyyyyyy"/>
+        <phase duration="6" state="rrrrrrrrrrrrGGrrrrrrrrrrrrGG"/>
+        <phase duration="5" state="rrrrrrrrrrrryyrrrrrrrrrrrryy"/>
+    </tlLogic>
+</additional>
