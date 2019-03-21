@@ -5,7 +5,7 @@ import torch
 import torch.nn.functional as F
 from torch.optim import Adam
 from utils import soft_update, hard_update
-from model import GaussianPolicy, QNetwork, ValueNetwork, DeterministicPolicy
+from model import GaussianPolicy, ExponentialPolicy, QNetwork, ValueNetwork, DeterministicPolicy
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class SAC(object):
@@ -24,7 +24,7 @@ class SAC(object):
                 args.hidden_size).to(device)
         self.critic_optim = Adam(self.critic.parameters(), lr=args.lr)
 
-        if self.policy_type == "Gaussian":
+        if self.policy_type == "Gaussian" or self.policy_type == "Exponential":
             self.alpha = args.alpha
             # Target Entropy = −dim(A) (e.g. , -6 for HalfCheetah-v2) as given in the paper
             if self.automatic_entropy_tuning == True:
@@ -34,9 +34,12 @@ class SAC(object):
             else:
                 pass
 
-
-            self.policy = GaussianPolicy(self.num_inputs, self.action_space,\
-                    args.hidden_size).to(device)
+            if self.policy_type == "Gaussian":
+                self.policy = GaussianPolicy(self.num_inputs, self.action_space,\
+                        args.hidden_size).to(device)
+            elif self.policy_type == "Exponential":
+                self.policy = ExponentialPolicy(self.num_inputs, self.action_space,\
+                        args.hidden_size).to(device)
             self.policy_optim = Adam(self.policy.parameters(), lr=args.lr)
 
             self.value = ValueNetwork(self.num_inputs,\
@@ -63,7 +66,7 @@ class SAC(object):
         else:
             self.policy.eval()
             _, _, _, action, _ = self.policy.sample(state)
-            if self.policy_type == "Gaussian":
+            if self.policy_type == "Gaussian" or self.policy_type == "Exponential":
                 action = torch.tanh(action)
             else:
                 pass
@@ -88,7 +91,7 @@ class SAC(object):
         expected_q1_value, expected_q2_value = self.critic(state_batch, action_batch)
         new_action, log_prob, _, mean, log_std = self.policy.sample(state_batch)
 
-        if self.policy_type == "Gaussian":
+        if self.policy_type == "Gaussian" or self.policy_type == "Exponential":
             if self.automatic_entropy_tuning:
                 """
                 Alpha Loss
@@ -133,7 +136,7 @@ class SAC(object):
         q1_new, q2_new = self.critic(state_batch, new_action)
         expected_new_q_value = torch.min(q1_new, q2_new)
 
-        if self.policy_type == "Gaussian":
+        if self.policy_type == "Gaussian" or self.policy_type == "Exponential":
             """
             Including a separate function approximator for the soft value can stabilize training and is convenient to
             train simultaneously with the other networks
@@ -169,7 +172,7 @@ class SAC(object):
         q2_value_loss.backward()
         self.critic_optim.step()
 
-        if self.policy_type == "Gaussian":
+        if self.policy_type == "Gaussian" or self.policy_type == "Exponential":
             self.value_optim.zero_grad()
             value_loss.backward()
             self.value_optim.step()
@@ -187,8 +190,9 @@ class SAC(object):
         """
         if updates % self.target_update_interval == 0 and self.policy_type == "Deterministic":
             soft_update(self.critic_target, self.critic, self.tau)
-
         elif updates % self.target_update_interval == 0 and self.policy_type == "Gaussian":
+            soft_update(self.value_target, self.value, self.tau)
+        elif updates % self.target_update_interval == 0 and self.policy_type == "Exponential":
             soft_update(self.value_target, self.value, self.tau)
         return value_loss.item(), q1_value_loss.item(), q2_value_loss.item(), policy_loss.item(), alpha_loss.item(), alpha_logs
 
