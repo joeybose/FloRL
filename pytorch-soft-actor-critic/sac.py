@@ -3,9 +3,12 @@ import os
 import numpy as np
 import torch
 import torch.nn.functional as F
+import torch.nn as nn
 from torch.optim import Adam
 from utils import soft_update, hard_update
 from model import GaussianPolicy, ExponentialPolicy, QNetwork, ValueNetwork, DeterministicPolicy
+import ipdb
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class SAC(object):
@@ -40,7 +43,7 @@ class SAC(object):
             elif self.policy_type == "Exponential":
                 self.policy = ExponentialPolicy(self.num_inputs, self.action_space,\
                         args.hidden_size).to(device)
-            self.policy_optim = Adam(self.policy.parameters(), lr=args.lr)
+            self.policy_optim = Adam(self.policy.parameters(), lr=args.lr, weight_decay=1e-2)
 
             self.value = ValueNetwork(self.num_inputs,\
                     args.hidden_size).to(device)
@@ -159,10 +162,20 @@ class SAC(object):
         policy_loss = ((self.alpha * log_prob) - expected_new_q_value).mean()
 
         # Regularization Loss
-        mean_loss = 0.001 * mean.pow(2).mean()
-        std_loss = 0.001 * log_std.pow(2).mean()
-
-        policy_loss += mean_loss + std_loss
+        if self.policy_type == "Gaussian":
+            mean_loss = 0.001 * mean.pow(2).mean()
+            std_loss = 0.001 * log_std.pow(2).mean()
+            policy_loss += mean_loss + std_loss
+        elif self.policy_type == "Exponential":
+            mean_loss = 0.1 * mean.pow(2).mean()
+            policy_loss += mean_loss
+            reg_loss = 0
+            for p in self.policy.parameters():
+                if p is not None:
+                    target = p-p
+                    reg_loss += F.l1_loss(p, target=torch.zeros_like(p).to(device))
+            policy_loss += 0.1 * reg_loss
+            torch.nn.utils.clip_grad_norm_(self.policy.parameters(),1e7)
 
         self.critic_optim.zero_grad()
         q1_value_loss.backward()
@@ -182,6 +195,8 @@ class SAC(object):
         self.policy_optim.zero_grad()
         policy_loss.backward()
         self.policy_optim.step()
+
+
 
 
         """

@@ -62,6 +62,7 @@ def main(args):
                 action = env.action_space.sample()
             else:
                 action = agent.select_action(state)  # Sample action from policy
+            time.sleep(.002)
             next_state, reward, done, _ = env.step(action)  # Step
             mask = not done  # 1 for not done and 0 for done
             memory.push(state, action, reward, next_state, mask)  # Append transition to memory
@@ -108,10 +109,8 @@ def main(args):
             episode_reward = 0
             while True:
                 action = agent.select_action(state, eval=True)
-
                 next_state, reward, done, _ = env.step(action)
                 episode_reward += reward
-
 
                 state = next_state
                 if done:

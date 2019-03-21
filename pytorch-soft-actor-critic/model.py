@@ -109,13 +109,16 @@ class ExponentialPolicy(nn.Module):
 
     def forward(self, state):
         x = F.relu(self.linear1(state))
+        # x = F.dropout(x,p=0.2)
         x = F.relu(self.linear2(x))
+        # x = F.dropout(x,p=0.2)
         log_rate = self.rate_linear(x)
         return log_rate
 
     def sample(self, state):
         log_rate = self.forward(state)
-        rate = log_rate.exp() #This forces this paramter to be > 0
+        rate = torch.abs(log_rate)
+        # rate = log_rate.exp() #This forces this paramter to be > 0
         exponential = Exponential(rate)
         x_t = exponential.rsample()  # for reparameterization trick (mean + std * N(0,1))
         action = torch.tanh(x_t)
