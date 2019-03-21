@@ -10,7 +10,6 @@ import itertools
 import torch
 import ipdb
 from sac import SAC
-from tensorboardX import SummaryWriter
 from normalized_actions import NormalizedActions
 from replay_memory import ReplayMemory
 
@@ -23,8 +22,6 @@ def main(args):
 
     # Agent
     agent = SAC(env.observation_space.shape[0], env.action_space, args)
-
-    writer = SummaryWriter()
 
     # Memory
     memory = ReplayMemory(args.replay_size)
@@ -78,12 +75,6 @@ def main(args):
                             ent_loss, alpha = agent.update_parameters(state_batch,\
                             action_batch,reward_batch,next_state_batch,mask_batch, updates)
 
-                    writer.add_scalar('loss/value', value_loss, updates)
-                    writer.add_scalar('loss/critic_1', critic_1_loss, updates)
-                    writer.add_scalar('loss/critic_2', critic_2_loss, updates)
-                    writer.add_scalar('loss/policy', policy_loss, updates)
-                    writer.add_scalar('loss/entropy_loss', ent_loss, updates)
-                    writer.add_scalar('entropy_temprature/alpha', alpha, updates)
                     if args.comet:
                         args.experiment.log_metric("Loss Value", value_loss,step=updates)
                         args.experiment.log_metric("Loss Critic 1",critic_1_loss,step=updates)
@@ -103,7 +94,6 @@ def main(args):
         if total_numsteps > args.num_steps:
             break
 
-        writer.add_scalar('reward/train', episode_reward, i_episode)
         rewards.append(episode_reward)
         if args.comet:
             args.experiment.log_metric("Train Reward",episode_reward,step=i_episode)
@@ -127,7 +117,6 @@ def main(args):
                 if done:
                     break
 
-            writer.add_scalar('reward/test', episode_reward, i_episode)
             if args.comet:
                 args.experiment.log_metric("Test Reward",episode_reward,step=i_episode)
 
