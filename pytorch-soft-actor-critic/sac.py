@@ -167,15 +167,15 @@ class SAC(object):
             std_loss = 0.001 * log_std.pow(2).mean()
             policy_loss += mean_loss + std_loss
         elif self.policy_type == "Exponential":
-            mean_loss = 0.1 * mean.pow(2).mean()
+            mean_loss = 0.001 * mean.pow(2).mean()
             policy_loss += mean_loss
-            reg_loss = 0
-            for p in self.policy.parameters():
-                if p is not None:
-                    target = p-p
-                    reg_loss += F.l1_loss(p, target=torch.zeros_like(p).to(device))
-            policy_loss += 0.1 * reg_loss
-            torch.nn.utils.clip_grad_norm_(self.policy.parameters(),1e7)
+            # reg_loss = 0
+            # for p in self.policy.parameters():
+                # if p is not None:
+                    # target = p-p
+                    # reg_loss += F.l1_loss(p, target=torch.zeros_like(p).to(device))
+            # policy_loss += 0.1 * reg_loss
+            # torch.nn.utils.clip_grad_norm_(self.policy.parameters(),1e7)
 
         self.critic_optim.zero_grad()
         q1_value_loss.backward()
