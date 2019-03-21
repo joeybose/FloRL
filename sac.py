@@ -4,36 +4,38 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch.optim import Adam
-from utils import soft_update, hard_update
-from model import GaussianPolicy, QNetwork, ValueNetwork
+from sac_utils import soft_update, hard_update
+from sac_model import GaussianPolicy, QNetwork, ValueNetwork
+import ipdb
 
+# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cpu")
 
 class SAC(object):
     def __init__(self, num_inputs, action_space, args):
-
         self.num_inputs = num_inputs
-        self.action_space = action_space.shape[0]
-        self.gamma = args.gamma
+        self.action_space = action_space
+        self.gamma = args.discount
         self.tau = args.tau
         self.scale_R = args.scale_R
         self.reparam = args.reparam
         self.deterministic = args.deterministic
         self.target_update_interval = args.target_update_interval
-        
-        self.policy = GaussianPolicy(self.num_inputs, self.action_space, args.hidden_size)
+
+        self.policy = GaussianPolicy(self.num_inputs, self.action_space, args.hidden_size).to(device)
         self.policy_optim = Adam(self.policy.parameters(), lr=args.lr)
 
-        self.critic = QNetwork(self.num_inputs, self.action_space, args.hidden_size)
+        self.critic = QNetwork(self.num_inputs, self.action_space,args.hidden_size).to(device)
         self.critic_optim = Adam(self.critic.parameters(), lr=args.lr)
 
         if self.deterministic == False:
-            self.value = ValueNetwork(self.num_inputs, args.hidden_size)
-            self.value_target = ValueNetwork(self.num_inputs, args.hidden_size)
+            self.value = ValueNetwork(self.num_inputs,args.hidden_size).to(device)
+            self.value_target = ValueNetwork(self.num_inputs,args.hidden_size).to(device)
             self.value_optim = Adam(self.value.parameters(), lr=args.lr)
             hard_update(self.value_target, self.value)
             self.value_criterion = nn.MSELoss()
         else:
-            self.critic_target = QNetwork(self.num_inputs, self.action_space, args.hidden_size)
+            self.critic_target = QNetwork(self.num_inputs, self.action_spaceargs.hidden_size).to(device)
             hard_update(self.critic_target, self.critic)
 
         self.soft_q_criterion = nn.MSELoss()
@@ -51,18 +53,28 @@ class SAC(object):
         action = action.detach().cpu().numpy()
         return action[0]
 
-
+    def train(self, replay_buffer, iterations, batch_size=100, discount=0.99, tau=0.005):
+        for it in range(iterations):
+            # Sample replay buffer
+            x, y, u, r, d = replay_buffer.sample(batch_size)
+            state_batch = torch.FloatTensor(x).to(device)
+            action_batch = torch.FloatTensor(u).to(device)
+            next_state_batch = torch.FloatTensor(y).to(device)
+            done_batch = torch.FloatTensor(1 - d).to(device)
+            reward_batch = torch.FloatTensor(r).to(device)
+            value_loss, critic_1_loss, critic_2_loss, policy_loss = self.update_parameters(state_batch,\
+                    action_batch,reward_batch,next_state_batch,done_batch,it)
 
     def update_parameters(self, state_batch, action_batch, reward_batch, next_state_batch, mask_batch, updates):
-        state_batch = torch.FloatTensor(state_batch)
-        next_state_batch = torch.FloatTensor(next_state_batch)
-        action_batch = torch.FloatTensor(action_batch)
-        reward_batch = torch.FloatTensor(reward_batch)
-        mask_batch = torch.FloatTensor(np.float32(mask_batch))
+        # state_batch = torch.FloatTensor(state_batch)
+        # next_state_batch = torch.FloatTensor(next_state_batch)
+        # action_batch = torch.FloatTensor(action_batch)
+        # reward_batch = torch.FloatTensor(reward_batch)
+        # mask_batch = torch.FloatTensor(np.float32(mask_batch))
 
         reward_batch = reward_batch.unsqueeze(1)  # reward_batch = [batch_size, 1]
         mask_batch = mask_batch.unsqueeze(1)  # mask_batch = [batch_size, 1]
-        
+
         """
         Use two Q-functions to mitigate positive bias in the policy improvement step that is known
         to degrade performance of value based methods. Two Q-functions also significantly speed
@@ -86,12 +98,12 @@ class SAC(object):
         """
         q1_value_loss = self.soft_q_criterion(expected_q1_value, next_q_value.detach())
         q2_value_loss = self.soft_q_criterion(expected_q2_value, next_q_value.detach())
-        
+
         q1_new, q2_new = self.critic(state_batch, new_action)
         expected_new_q_value = torch.min(q1_new, q2_new)
 
         """
-        Including a separate function approximator for the soft value can stabilize training and is convenient to 
+        Including a separate function approximator for the soft value can stabilize training and is convenient to
         train simultaneously with the other networks
         Update the V towards the min of two Q-functions in order to reduce overestimation bias from function approximation error.
         JV = 𝔼st~D[0.5(V(st) - (𝔼at~π[Qmin(st,at) - log π(at|st)]))^2]
@@ -135,8 +147,8 @@ class SAC(object):
         self.policy_optim.zero_grad()
         policy_loss.backward()
         self.policy_optim.step()
-        
-        
+
+
         """
         We update the target weights to match the current value function weights periodically
         Update target parameter after every n(args.target_update_interval) updates
@@ -163,7 +175,7 @@ class SAC(object):
         torch.save(self.value.state_dict(), value_path)
         torch.save(self.policy.state_dict(), actor_path)
         torch.save(self.critic.state_dict(), critic_path)
-    
+
     # Load model parameters
     def load_model(self, actor_path, critic_path, value_path):
         print('Loading models from {}, {} and {}'.format(actor_path, critic_path, value_path))
