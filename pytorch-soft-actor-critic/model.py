@@ -120,7 +120,7 @@ class ExponentialPolicy(nn.Module):
         rate = torch.abs(log_rate)
         # rate = log_rate.exp() #This forces this paramter to be > 0
         exponential = Exponential(rate)
-        x_t = exponential.rsample()  # for reparameterization trick (mean + std * N(0,1))
+        x_t = exponential.rsample()
         action = torch.tanh(x_t)
         log_prob = exponential.log_prob(x_t)
         # Enforcing Action Bound
