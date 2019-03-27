@@ -9,7 +9,6 @@ import utils
 import TD3
 import OurDDPG
 import DDPG
-import softTD3
 import sac
 from utils import Logger
 from utils import create_folder
