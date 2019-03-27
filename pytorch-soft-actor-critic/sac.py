@@ -7,6 +7,7 @@ import torch.nn as nn
 from torch.optim import Adam
 from utils import soft_update, hard_update
 from model import GaussianPolicy, ExponentialPolicy, QNetwork, ValueNetwork, DeterministicPolicy
+from flows import *
 import ipdb
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -18,6 +19,7 @@ class SAC(object):
         self.action_space = action_space.shape[0]
         self.gamma = args.gamma
         self.tau = args.tau
+        self.clip = args.clip
 
         self.policy_type = args.policy
         self.target_update_interval = args.target_update_interval
@@ -39,11 +41,11 @@ class SAC(object):
 
             if self.policy_type == "Gaussian":
                 self.policy = GaussianPolicy(self.num_inputs, self.action_space,\
-                        args.hidden_size).to(device)
+                        args.hidden_size,args).to(device)
             elif self.policy_type == "Exponential":
                 self.policy = ExponentialPolicy(self.num_inputs, self.action_space,\
-                        args.hidden_size).to(device)
-            self.policy_optim = Adam(self.policy.parameters(), lr=args.lr, weight_decay=1e-2)
+                        args.hidden_size,args).to(device)
+            self.policy_optim = Adam(self.policy.parameters(), lr=args.lr,weight_decay=1e-6)
 
             self.value = ValueNetwork(self.num_inputs,\
                     args.hidden_size).to(device)
@@ -51,6 +53,41 @@ class SAC(object):
                     args.hidden_size).to(device)
             self.value_optim = Adam(self.value.parameters(), lr=args.lr)
             hard_update(self.value_target, self.value)
+        elif self.policy_type == "Flow":
+            if args.flow_model == 'made':
+                self.policy = MADE(self.action_space,self.num_inputs,args.hidden_size,
+                                   args.n_hidden, args.cond_label_size,
+                                   args.activation_fn,
+                                   args.input_order).to(device)
+            elif args.flow_model == 'mademog':
+                assert args.n_components > 1, 'Specify more than 1 component for mixture of gaussians models.'
+                self.policy = MADEMOG(args.n_components, self.num_inputs,
+                                      self.action_space, args.flow_hidden_size,
+                                      args.n_hidden, args.cond_label_size,
+                                      args.activation_fn,
+                                      args.input_order).to(device)
+            elif args.flow_model == 'maf':
+                self.policy = MAF(args.n_blocks,self.num_inputs,self.action_space,
+                                  args.flow_hidden_size, args.n_hidden,
+                                  args.cond_label_size, args.activation_fn,
+                                  args.input_order, batch_norm=not
+                                  args.no_batch_norm).to(device)
+            elif args.flow_model == 'mafmog':
+                assert args.n_components > 1, 'Specify more than 1 component for mixture of gaussians models.'
+                self.policy = MAFMOG(args.n_blocks,self.num_inputs,args.n_components,
+                                     self.action_space, args.flow_hidden_size,
+                                     args.n_hidden, args.cond_label_size,
+                                     args.activation_fn, args.input_order,
+                                     batch_norm=not
+                                     args.no_batch_norm).to(device)
+            elif args.flow_model =='realnvp':
+                self.policy = RealNVP(args.n_blocks,self.num_inputs,self.action_space,
+                                args.flow_hidden_size, args.n_hidden,
+                                args.cond_label_size, batch_norm=not
+                                args.no_batch_norm).to(device)
+            else:
+                raise ValueError('Unrecognized model.')
+            self.policy_optim = Adam(self.policy.parameters(), lr=args.lr, weight_decay=1e-6)
         else:
             self.policy = DeterministicPolicy(self.num_inputs, self.action_space, args.hidden_size)
             self.policy_optim = Adam(self.policy.parameters(), lr=args.lr)
@@ -59,25 +96,23 @@ class SAC(object):
                     args.hidden_size).to(device)
             hard_update(self.critic_target, self.critic)
 
-
-
     def select_action(self, state, eval=False):
         state = torch.FloatTensor(state).to(device).unsqueeze(0)
         if eval == False:
             self.policy.train()
-            action, _, _, _, _ = self.policy.sample(state)
+            action, _, _, _, _ = self.policy(state)
         else:
             self.policy.eval()
-            _, _, _, action, _ = self.policy.sample(state)
+            _, _, _, action, _ = self.policy(state)
             if self.policy_type == "Gaussian" or self.policy_type == "Exponential":
+                action = torch.tanh(action)
+            elif self.policy_type == "Flow":
                 action = torch.tanh(action)
             else:
                 pass
         #action = torch.tanh(action)
         action = action.detach().cpu().numpy()
         return action[0]
-
-
 
     def update_parameters(self, state_batch, action_batch, reward_batch, next_state_batch, mask_batch, updates):
         state_batch = torch.FloatTensor(state_batch).to(device)
@@ -92,7 +127,7 @@ class SAC(object):
         up training, especially on harder task.
         """
         expected_q1_value, expected_q2_value = self.critic(state_batch, action_batch)
-        new_action, log_prob, _, mean, log_std = self.policy.sample(state_batch)
+        new_action, log_prob, _, mean, log_std = self.policy(state_batch)
 
         if self.policy_type == "Gaussian" or self.policy_type == "Exponential":
             if self.automatic_entropy_tuning:
@@ -123,11 +158,10 @@ class SAC(object):
             """
             alpha_loss = torch.tensor(0.)
             alpha_logs = self.alpha  # For TensorboardX logs
-            next_state_action, _, _, _, _, = self.policy.sample(next_state_batch)
+            next_state_action, _, _, _, _, = self.policy(next_state_batch)
             target_critic_1, target_critic_2 = self.critic_target(next_state_batch, next_state_action)
             target_critic = torch.min(target_critic_1, target_critic_2)
             next_q_value = reward_batch + mask_batch * self.gamma * (target_critic).detach()
-
 
         """
         Soft Q-function parameters can be trained to minimize the soft Bellman residual
@@ -168,14 +202,8 @@ class SAC(object):
             policy_loss += mean_loss + std_loss
         elif self.policy_type == "Exponential":
             mean_loss = 0.001 * mean.pow(2).mean()
-            policy_loss += mean_loss
-            # reg_loss = 0
-            # for p in self.policy.parameters():
-                # if p is not None:
-                    # target = p-p
-                    # reg_loss += F.l1_loss(p, target=torch.zeros_like(p).to(device))
-            # policy_loss += 0.1 * reg_loss
-            # torch.nn.utils.clip_grad_norm_(self.policy.parameters(),1e7)
+            std_loss = 0.001 * log_std.pow(2).mean()
+            policy_loss += mean_loss + std_loss
 
         self.critic_optim.zero_grad()
         q1_value_loss.backward()
@@ -194,6 +222,8 @@ class SAC(object):
 
         self.policy_optim.zero_grad()
         policy_loss.backward()
+        if self.policy_type == 'Exponential' or self.policy_type == 'Flow':
+            torch.nn.utils.clip_grad_norm_(self.policy.parameters(),self.clip)
         self.policy_optim.step()
 
 
