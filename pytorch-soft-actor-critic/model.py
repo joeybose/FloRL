@@ -1,6 +1,7 @@
 import sys
 import os
 import torch
+import ipdb
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions import Normal, Exponential
@@ -66,7 +67,7 @@ class QNetwork(nn.Module):
 
 
 class GaussianPolicy(nn.Module):
-    def __init__(self, num_inputs, num_actions, hidden_dim):
+    def __init__(self, num_inputs, num_actions, hidden_dim, args):
         super(GaussianPolicy, self).__init__()
 
         self.linear1 = nn.Linear(num_inputs, hidden_dim)
@@ -77,7 +78,7 @@ class GaussianPolicy(nn.Module):
 
         self.apply(weights_init_)
 
-    def forward(self, state):
+    def encode(self, state):
         x = F.relu(self.linear1(state))
         x = F.relu(self.linear2(x))
         mean = self.mean_linear(x)
@@ -85,8 +86,8 @@ class GaussianPolicy(nn.Module):
         log_std = torch.clamp(log_std, min=LOG_SIG_MIN, max=LOG_SIG_MAX)
         return mean, log_std
 
-    def sample(self, state):
-        mean, log_std = self.forward(state)
+    def forward(self, state):
+        mean, log_std = self.encode(state)
         std = log_std.exp()
         normal = Normal(mean, std)
         x_t = normal.rsample()  # for reparameterization trick (mean + std * N(0,1))
@@ -98,7 +99,7 @@ class GaussianPolicy(nn.Module):
         return action, log_prob, x_t, mean, log_std
 
 class ExponentialPolicy(nn.Module):
-    def __init__(self, num_inputs, num_actions, hidden_dim):
+    def __init__(self, num_inputs, num_actions, hidden_dim, args):
         super(ExponentialPolicy, self).__init__()
 
         self.linear1 = nn.Linear(num_inputs, hidden_dim)
@@ -107,23 +108,26 @@ class ExponentialPolicy(nn.Module):
         self.rate_linear = nn.Linear(hidden_dim, num_actions)
         self.apply(weights_init_)
 
-    def forward(self, state):
+    def encode(self, state):
         x = F.relu(self.linear1(state))
         x = F.relu(self.linear2(x))
         log_rate = self.rate_linear(x)
         return log_rate
 
-    def sample(self, state):
-        log_rate = self.forward(state)
-        rate = log_rate.exp() #This forces this paramter to be > 0
+    def forward(self, state):
+        log_rate = self.encode(state)
+        rate = torch.abs(log_rate)
         exponential = Exponential(rate)
-        x_t = exponential.rsample()  # for reparameterization trick (mean + std * N(0,1))
+        x_t = exponential.rsample()
         action = torch.tanh(x_t)
         log_prob = exponential.log_prob(x_t)
+        mean = exponential.mean
+        std = torch.sqrt(exponential.variance)
+        log_std = torch.log(std)
         # Enforcing Action Bound
         log_prob -= torch.log(1 - action.pow(2) + epsilon)
         log_prob = log_prob.sum(1, keepdim=True)
-        return action, log_prob, x_t, rate, torch.tensor(0.).to(device)
+        return action, log_prob, x_t, mean, log_std
 
 class DeterministicPolicy(nn.Module):
     def __init__(self, num_inputs, num_actions, hidden_dim):
@@ -136,14 +140,14 @@ class DeterministicPolicy(nn.Module):
 
         self.apply(weights_init_)
 
-    def forward(self, state):
+    def encode(self, state):
         x = F.relu(self.linear1(state))
         x = F.relu(self.linear2(x))
         mean = torch.tanh(self.mean(x))
         return mean
 
 
-    def sample(self, state):
+    def forward(self, state):
         mean = self.forward(state)
         noise = self.noise.normal_(0., std=0.1)
         noise = noise.clamp(-0.25, 0.25)

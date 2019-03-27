@@ -62,6 +62,7 @@ def main(args):
                 action = env.action_space.sample()
             else:
                 action = agent.select_action(state)  # Sample action from policy
+            time.sleep(.002)
             next_state, reward, done, _ = env.step(action)  # Step
             mask = not done  # 1 for not done and 0 for done
             memory.push(state, action, reward, next_state, mask)  # Append transition to memory
@@ -108,10 +109,8 @@ def main(args):
             episode_reward = 0
             while True:
                 action = agent.select_action(state, eval=True)
-
-                next_state, reward, done, _ = env.step(action)
+                next_state, reward, done, _ = env.step(action.squeeze())
                 episode_reward += reward
-
 
                 state = next_state
                 if done:
@@ -152,6 +151,8 @@ if __name__ == '__main__':
                         help='random seed (default: 456)')
     parser.add_argument('--batch_size', type=int, default=1024, metavar='N',
                         help='batch size (default: 256)')
+    parser.add_argument('--clip', type=int, default=1, metavar='N',
+                        help='Clipping for gradient norm')
     parser.add_argument('--num_steps', type=int, default=1000001, metavar='N',
                         help='maximum number of steps (default: 1000000)')
     parser.add_argument('--hidden_size', type=int, default=256, metavar='N',
@@ -168,7 +169,23 @@ if __name__ == '__main__':
     parser.add_argument('--debug', default=False, action='store_true',help='Debug')
     parser.add_argument('--namestr', type=str, default='FloRL', \
             help='additional info in output filename to describe experiments')
+    parser.add_argument('--n_blocks', type=int, default=5,\
+                        help='Number of blocks to stack in a model (MADE in MAF; Coupling+BN in RealNVP).')
+    parser.add_argument('--n_components', type=int, default=1,\
+                        help='Number of Gaussian clusters for mixture of gaussians models.')
+    parser.add_argument('--flow_hidden_size', type=int, default=100,\
+                        help='Hidden layer size for MADE (and each MADE block in an MAF).')
+    parser.add_argument('--n_hidden', type=int, default=1, help='Number of hidden layers in each MADE.')
+    parser.add_argument('--activation_fn', type=str, default='relu',\
+                        help='What activation function to use in the MADEs.')
+    parser.add_argument('--input_order', type=str, default='sequential',\
+                        help='What input order to use (sequential | random).')
+    parser.add_argument('--conditional', default=False, action='store_true',\
+                        help='Whether to use a conditional model.')
+    parser.add_argument('--no_batch_norm', action='store_true')
+    parser.add_argument('--flow_model', default='maf', help='Which model to use: made, maf.')
 
     args = parser.parse_args()
+    args.cond_label_size = None
     main(args)
 
