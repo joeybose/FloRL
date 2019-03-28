@@ -28,9 +28,9 @@ class SAC(object):
         self.critic = QNetwork(self.num_inputs, self.action_space,\
                 args.hidden_size).to(device)
         self.critic_optim = Adam(self.critic.parameters(), lr=args.lr)
+        self.alpha = args.alpha
 
         if self.policy_type == "Gaussian" or self.policy_type == "Exponential":
-            self.alpha = args.alpha
             # Target Entropy = −dim(A) (e.g. , -6 for HalfCheetah-v2) as given in the paper
             if self.automatic_entropy_tuning == True:
                 self.target_entropy = -torch.prod(torch.Tensor(action_space.shape)).item()
@@ -77,17 +77,26 @@ class SAC(object):
                 self.policy = MAFMOG(args.n_blocks,self.num_inputs,args.n_components,
                                      self.action_space, args.flow_hidden_size,
                                      args.n_hidden, args.cond_label_size,
-                                     args.activation_fn, args.input_order,
+                                     args.activation_fn,args.input_order,
                                      batch_norm=not
                                      args.no_batch_norm).to(device)
             elif args.flow_model =='realnvp':
                 self.policy = RealNVP(args.n_blocks,self.num_inputs,self.action_space,
-                                args.flow_hidden_size, args.n_hidden,
-                                args.cond_label_size, batch_norm=not
+                                args.flow_hidden_size,args.n_hidden,
+                                args.cond_label_size,batch_norm=not
                                 args.no_batch_norm).to(device)
+            elif args.flow_model =='planar':
+                self.policy = PlanarBase(args.n_blocks,self.num_inputs,self.action_space,
+                           args.flow_hidden_size,args.n_hidden,device).to(device)
             else:
                 raise ValueError('Unrecognized model.')
             self.policy_optim = Adam(self.policy.parameters(), lr=args.lr, weight_decay=1e-6)
+            self.value = ValueNetwork(self.num_inputs,\
+                    args.hidden_size).to(device)
+            self.value_target = ValueNetwork(self.num_inputs,\
+                    args.hidden_size).to(device)
+            self.value_optim = Adam(self.value.parameters(), lr=args.lr)
+            hard_update(self.value_target, self.value)
         else:
             self.policy = DeterministicPolicy(self.num_inputs, self.action_space, args.hidden_size)
             self.policy_optim = Adam(self.policy.parameters(), lr=args.lr)
@@ -100,9 +109,13 @@ class SAC(object):
         state = torch.FloatTensor(state).to(device).unsqueeze(0)
         if eval == False:
             self.policy.train()
+            if len(state.size()) > 2:
+                state = state.view(-1,self.num_inputs)
             action, _, _, _, _ = self.policy(state)
         else:
             self.policy.eval()
+            if len(state.size()) > 2:
+                state = state.view(-1,self.num_inputs)
             _, _, _, action, _ = self.policy(state)
             if self.policy_type == "Gaussian" or self.policy_type == "Exponential":
                 action = torch.tanh(action)
@@ -129,7 +142,7 @@ class SAC(object):
         expected_q1_value, expected_q2_value = self.critic(state_batch, action_batch)
         new_action, log_prob, _, mean, log_std = self.policy(state_batch)
 
-        if self.policy_type == "Gaussian" or self.policy_type == "Exponential":
+        if self.policy_type == "Gaussian" or self.policy_type == "Exponential" or self.policy_type == 'Flow':
             if self.automatic_entropy_tuning:
                 """
                 Alpha Loss
@@ -173,7 +186,7 @@ class SAC(object):
         q1_new, q2_new = self.critic(state_batch, new_action)
         expected_new_q_value = torch.min(q1_new, q2_new)
 
-        if self.policy_type == "Gaussian" or self.policy_type == "Exponential":
+        if self.policy_type == "Gaussian" or self.policy_type == "Exponential" or self.policy_type == 'Flow':
             """
             Including a separate function approximator for the soft value can stabilize training and is convenient to
             train simultaneously with the other networks

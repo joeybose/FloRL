@@ -1,9 +1,89 @@
 import torch
 import torch.nn as nn
+import numpy as np
 import torch.nn.functional as F
+from torch.distributions import Normal
 from flow_helpers import *
+import ipdb
 
 #Reference: https://github.com/ritheshkumar95/pytorch-normalizing-flows/blob/master/modules.py
+# Initialize Policy weights
+LOG_SIG_MAX = 2
+LOG_SIG_MIN = -20
+epsilon = 1e-6
+def weights_init_(m):
+    classname = m.__class__.__name__
+    if classname.find('Linear') != -1:
+        torch.nn.init.xavier_uniform_(m.weight, gain=1)
+        torch.nn.init.constant_(m.bias, 0)
+
+class PlanarBase(nn.Module):
+    def __init__(self, n_blocks, state_size, input_size, hidden_size, n_hidden, device):
+        super().__init__()
+        self.l1 = nn.Linear(state_size, hidden_size)
+        self.l2 = nn.Linear(hidden_size,hidden_size)
+        self.mu = nn.Linear(hidden_size, input_size)
+        self.log_std = nn.Linear(hidden_size, input_size)
+        self.device = device
+        self.z_size = input_size
+        self.num_flows = n_blocks
+        self.flow = Planar
+        # Amortized flow parameters
+        self.amor_u = nn.Linear(hidden_size, self.num_flows * input_size)
+        self.amor_w = nn.Linear(hidden_size, self.num_flows * input_size)
+        self.amor_b = nn.Linear(hidden_size, self.num_flows)
+
+        # Normalizing flow layers
+        for k in range(self.num_flows):
+            flow_k = self.flow()
+            self.add_module('flow_' + str(k), flow_k)
+
+        self.apply(weights_init_)
+
+    def encode(self, state):
+        x = F.relu(self.l1(state))
+        x = F.relu(self.l2(x))
+        mean = self.mu(x)
+        log_std = self.log_std(x)
+        log_std = torch.clamp(log_std, min=LOG_SIG_MIN, max=LOG_SIG_MAX)
+        return mean, log_std, x
+
+    def forward(self, state):
+        batch_size = state.size(0)
+        mean, log_std, x = self.encode(state)
+        std = log_std.exp()
+        normal = Normal(mean, std)
+        x_t = normal.rsample()  # for reparameterization trick (mean + std * N(0,1))
+        action = torch.tanh(x_t)
+        log_prob = normal.log_prob(x_t)
+        # Enforcing Action Bound
+        log_prob -= torch.log(1 - action.pow(2) + epsilon)
+        log_prob = log_prob.sum(1, keepdim=True)
+        z = [action]
+        u = self.amor_u(x).view(batch_size, self.num_flows, self.z_size, 1)
+        w = self.amor_w(x).view(batch_size, self.num_flows, 1, self.z_size)
+        b = self.amor_b(x).view(batch_size, self.num_flows, 1, 1)
+
+        self.log_det_j = torch.zeros(batch_size).to(self.device)
+
+        for k in range(self.num_flows):
+            flow_k = getattr(self, 'flow_' + str(k))
+            z_k, log_det_jacobian = flow_k(z[k], u[:, k, :, :],
+                                           w[:, k, :, :], b[:, k, :, :])
+            z.append(z_k)
+            self.log_det_j += log_det_jacobian
+
+        action = z[-1]
+        log_prob_final_action = log_prob.squeeze() - self.log_det_j
+
+        probability_final_action = torch.exp(log_prob_final_action)
+        entropy = (probability_final_action * log_prob_final_action)
+        normalized_action = torch.tanh(action)
+        np_action = action.cpu().data.numpy().flatten()
+        if np.isnan(np_action[0]):
+            ipdb.set_trace()
+        return normalized_action, log_prob, action , mean, std
+
 class PlanarFlow(nn.Module):
     def __init__(self, D):
         super().__init__()
@@ -304,8 +384,11 @@ class MAF(nn.Module):
     def forward(self, x, y=None):
         ''' Projecting the State to the same dim as actions '''
         action_proj = F.relu(self.linear1(x))
-        action_proj = action_proj.view(1,-1)
-        action, sum_log_abs_det_jacobians = self.net(action_proj, y)
+        # action_proj = action_proj.view(1,-1)
+        if action_proj.size()[0] == 1 and len(action_proj.size()) > 2:
+            action, sum_log_abs_det_jacobians = self.net(action_proj[0], y)
+        else:
+            action, sum_log_abs_det_jacobians = self.net(action_proj, y)
         log_prob = torch.sum(self.base_dist.log_prob(action) + sum_log_abs_det_jacobians, dim=1)
         normalized_action = torch.tanh(action)
         # TODO: Find the mean and log std deviation of a Normalizing Flow
