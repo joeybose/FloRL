@@ -116,7 +116,8 @@ class ExponentialPolicy(nn.Module):
 
     def forward(self, state):
         log_rate = self.encode(state)
-        rate = torch.abs(log_rate)
+        log_rate = torch.clamp(log_rate, min=LOG_SIG_MIN, max=LOG_SIG_MAX)
+        rate = torch.exp(log_rate)
         exponential = Exponential(rate)
         x_t = exponential.rsample()
         action = torch.tanh(x_t)
