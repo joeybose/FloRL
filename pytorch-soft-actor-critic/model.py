@@ -4,7 +4,7 @@ import torch
 import ipdb
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.distributions import Normal, Exponential
+from torch.distributions import Normal, Exponential, LogNormal
 
 LOG_SIG_MAX = 2
 LOG_SIG_MIN = -20
@@ -130,6 +130,39 @@ class ExponentialPolicy(nn.Module):
         log_prob = log_prob.sum(1, keepdim=True)
         return action, log_prob, x_t, mean, log_std
 
+
+class LogNormalPolicy(nn.Module):
+    def __init__(self, num_inputs, num_actions, hidden_dim, args):
+        super(LogNormalPolicy, self).__init__()
+
+        self.linear1 = nn.Linear(num_inputs, hidden_dim)
+        self.linear2 = nn.Linear(hidden_dim, hidden_dim)
+
+        self.mean_linear = nn.Linear(hidden_dim, num_actions)
+        self.log_std_linear = nn.Linear(hidden_dim, num_actions)
+
+        self.apply(weights_init_)
+
+    def encode(self, state):
+        x = F.relu(self.linear1(state))
+        x = F.relu(self.linear2(x))
+        mean = self.mean_linear(x)
+        log_std = self.log_std_linear(x)
+        log_std = torch.clamp(log_std, min=LOG_SIG_MIN, max=LOG_SIG_MAX)
+        return mean, log_std
+
+    def forward(self, state):
+        mean, log_std = self.encode(state)
+        std = torch.exp(log_std)
+        log_normal = LogNormal(mean, std)
+        x_t = log_normal.rsample()
+        action = torch.tanh(x_t)
+        log_prob = log_normal.log_prob(x_t)
+        # Enforcing Action Bound
+        log_prob -= torch.log(1 - action.pow(2) + epsilon)
+        log_prob = log_prob.sum(1, keepdim=True)
+        return action, log_prob, x_t, mean, log_std
+
 class DeterministicPolicy(nn.Module):
     def __init__(self, num_inputs, num_actions, hidden_dim):
         super(DeterministicPolicy, self).__init__()
@@ -146,7 +179,6 @@ class DeterministicPolicy(nn.Module):
         x = F.relu(self.linear2(x))
         mean = torch.tanh(self.mean(x))
         return mean
-
 
     def forward(self, state):
         mean = self.forward(state)
