@@ -395,7 +395,12 @@ class MAF(nn.Module):
         return normalized_action, log_prob, action , action, 0
 
     def inverse(self, u, y=None):
-        return self.net.inverse(u, y)
+        action_proj = F.relu(self.linear1(u))
+        action, sum_log_abs_det_jacobians = self.net.inverse(action_proj, y)
+        log_prob = torch.sum(self.base_dist.log_prob(action) + sum_log_abs_det_jacobians, dim=1)
+        normalized_action = torch.tanh(action)
+        return normalized_action, log_prob, action , action, 0
+        # return self.net.inverse(action_proj, y)
 
     def log_prob(self, x, y=None):
         u, sum_log_abs_det_jacobians = self.forward(x, y)
