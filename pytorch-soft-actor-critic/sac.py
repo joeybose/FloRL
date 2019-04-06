@@ -116,7 +116,10 @@ class SAC(object):
             self.policy.eval()
             if len(state.size()) > 2:
                 state = state.view(-1,self.num_inputs)
-            _, _, _, action, _ = self.policy(state)
+            if self.policy_type != 'Flow':
+                _, _, _, action, _ = self.policy(state)
+            else:
+                _, _, _, action, _ = self.policy.inverse(state)
             if self.policy_type == "Gaussian" or self.policy_type == "Exponential":
                 action = torch.tanh(action)
             elif self.policy_type == "Flow":
@@ -140,7 +143,10 @@ class SAC(object):
         up training, especially on harder task.
         """
         expected_q1_value, expected_q2_value = self.critic(state_batch, action_batch)
-        new_action, log_prob, _, mean, log_std = self.policy(state_batch)
+        if self.policy_type == 'Flow':
+            new_action, log_prob, _, mean, log_std = self.policy.inverse(state_batch)
+        else:
+            new_action, log_prob, _, mean, log_std = self.policy(state_batch)
 
         if self.policy_type == "Gaussian" or self.policy_type == "Exponential" or self.policy_type == 'Flow':
             if self.automatic_entropy_tuning:
@@ -238,8 +244,6 @@ class SAC(object):
         if self.policy_type == 'Exponential' or self.policy_type == 'Flow':
             torch.nn.utils.clip_grad_norm_(self.policy.parameters(),self.clip)
         self.policy_optim.step()
-
-
 
 
         """
