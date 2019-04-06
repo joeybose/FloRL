@@ -6,7 +6,7 @@ import torch.nn.functional as F
 import torch.nn as nn
 from torch.optim import Adam
 from utils import soft_update, hard_update
-from model import GaussianPolicy, ExponentialPolicy, LogNormalPolicy, QNetwork, ValueNetwork, DeterministicPolicy
+from model import GaussianPolicy, ExponentialPolicy, LogNormalPolicy, LaplacePolicy, QNetwork, ValueNetwork, DeterministicPolicy
 from flows import *
 import ipdb
 
@@ -30,7 +30,7 @@ class SAC(object):
         self.critic_optim = Adam(self.critic.parameters(), lr=args.lr)
         self.alpha = args.alpha
 
-        if self.policy_type == "Gaussian" or self.policy_type == "Exponential" or self.policy_type == "LogNormal":
+        if self.policy_type == "Gaussian" or self.policy_type == "Exponential" or self.policy_type == "LogNormal" or self.policy_type == "Laplace":
             # Target Entropy = −dim(A) (e.g. , -6 for HalfCheetah-v2) as given in the paper
             if self.automatic_entropy_tuning == True:
                 self.target_entropy = -torch.prod(torch.Tensor(action_space.shape)).item()
@@ -47,6 +47,9 @@ class SAC(object):
                         args.hidden_size,args).to(device)
             elif self.policy_type == "LogNormal":
                 self.policy = LogNormalPolicy(self.num_inputs, self.action_space,\
+                        args.hidden_size,args).to(device)
+            elif self.policy_type == "Laplace":
+                self.policy = LaplacePolicy(self.num_inputs, self.action_space,\
                         args.hidden_size,args).to(device)
 
             self.policy_optim = Adam(self.policy.parameters(), lr=args.lr,weight_decay=1e-6)
@@ -121,7 +124,7 @@ class SAC(object):
             if len(state.size()) > 2:
                 state = state.view(-1,self.num_inputs)
             _, _, _, action, _ = self.policy(state)
-            if self.policy_type == "Gaussian" or self.policy_type == "Exponential" or self.policy_type == "LogNormal":
+            if self.policy_type == "Gaussian" or self.policy_type == "Exponential" or self.policy_type == "LogNormal" or self.policy_type == "Laplace":
                 action = torch.tanh(action)
             elif self.policy_type == "Flow":
                 action = torch.tanh(action)
@@ -146,7 +149,7 @@ class SAC(object):
         expected_q1_value, expected_q2_value = self.critic(state_batch, action_batch)
         new_action, log_prob, _, mean, log_std = self.policy(state_batch)
 
-        if self.policy_type == "Gaussian" or self.policy_type == "Exponential" or self.policy_type == "LogNormal" or self.policy_type == 'Flow':
+        if self.policy_type == "Gaussian" or self.policy_type == "Exponential" or self.policy_type == "LogNormal" or self.policy_type == "Laplace" or self.policy_type == 'Flow':
             if self.automatic_entropy_tuning:
                 """
                 Alpha Loss
@@ -190,7 +193,7 @@ class SAC(object):
         q1_new, q2_new = self.critic(state_batch, new_action)
         expected_new_q_value = torch.min(q1_new, q2_new)
 
-        if self.policy_type == "Gaussian" or self.policy_type == "Exponential" or self.policy_type == "LogNormal" or self.policy_type == 'Flow':
+        if self.policy_type == "Gaussian" or self.policy_type == "Exponential" or self.policy_type == "LogNormal" or self.policy_type == "Laplace" or self.policy_type == 'Flow':
             """
             Including a separate function approximator for the soft value can stabilize training and is convenient to
             train simultaneously with the other networks
@@ -213,7 +216,7 @@ class SAC(object):
         policy_loss = ((self.alpha * log_prob) - expected_new_q_value).mean()
 
         # Regularization Loss
-        if self.policy_type == "Gaussian" or self.policy_type == "Exponential" or self.policy_type == "LogNormal":
+        if self.policy_type == "Gaussian" or self.policy_type == "Exponential" or self.policy_type == "LogNormal" or self.policy_type == "Laplace":
             mean_loss = 0.001 * mean.pow(2).mean()
             std_loss = 0.001 * log_std.pow(2).mean()
             policy_loss += mean_loss + std_loss
@@ -226,7 +229,7 @@ class SAC(object):
         q2_value_loss.backward()
         self.critic_optim.step()
 
-        if self.policy_type == "Gaussian" or self.policy_type == "Exponential" or self.policy_type == "LogNormal":
+        if self.policy_type == "Gaussian" or self.policy_type == "Exponential" or self.policy_type == "LogNormal" or self.policy_type == "Laplace":
             self.value_optim.zero_grad()
             value_loss.backward()
             self.value_optim.step()
@@ -235,7 +238,7 @@ class SAC(object):
 
         self.policy_optim.zero_grad()
         policy_loss.backward()
-        if self.policy_type == 'Exponential' or self.policy_type == "LogNormal" or self.policy_type == 'Flow':
+        if self.policy_type == 'Exponential' or self.policy_type == "LogNormal" or self.policy_type == "Laplace" or self.policy_type == 'Flow':
             torch.nn.utils.clip_grad_norm_(self.policy.parameters(),self.clip)
         self.policy_optim.step()
 
