@@ -121,7 +121,7 @@ class ExponentialPolicy(nn.Module):
         exponential = Exponential(rate)
         x_t = exponential.rsample()
         action = torch.tanh(x_t)
-        log_prob = xponential.log_prob(x_t)
+        log_prob = exponential.log_prob(x_t)
         mean = exponential.mean
         std = torch.sqrt(exponential.variance)
         log_std = torch.log(std)
