@@ -4,7 +4,7 @@ import torch
 import ipdb
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.distributions import Normal, Exponential
+from torch.distributions import Normal, Exponential, LogNormal, Laplace
 
 LOG_SIG_MAX = 2
 LOG_SIG_MIN = -20
@@ -121,9 +121,75 @@ class ExponentialPolicy(nn.Module):
         exponential = Exponential(rate)
         x_t = exponential.rsample()
         action = torch.tanh(x_t)
-        log_prob = exponential.log_prob(x_t)
+        log_prob = xponential.log_prob(x_t)
         mean = exponential.mean
         std = torch.sqrt(exponential.variance)
+        log_std = torch.log(std)
+        # Enforcing Action Bound
+        log_prob -= torch.log(1 - action.pow(2) + epsilon)
+        log_prob = log_prob.sum(1, keepdim=True)
+        return action, log_prob, x_t, mean, log_std
+
+class LogNormalPolicy(nn.Module):
+    def __init__(self, num_inputs, num_actions, hidden_dim, args):
+        super(LogNormalPolicy, self).__init__()
+
+        self.linear1 = nn.Linear(num_inputs, hidden_dim)
+        self.linear2 = nn.Linear(hidden_dim, hidden_dim)
+
+        self.mean_linear = nn.Linear(hidden_dim, num_actions)
+        self.log_std_linear = nn.Linear(hidden_dim, num_actions)
+
+        self.apply(weights_init_)
+
+    def encode(self, state):
+        x = F.relu(self.linear1(state))
+        x = F.relu(self.linear2(x))
+        mean = self.mean_linear(x)
+        log_std = self.log_std_linear(x)
+        log_std = torch.clamp(log_std, min=LOG_SIG_MIN, max=LOG_SIG_MAX)
+        return mean, log_std
+
+    def forward(self, state):
+        mean, log_std = self.encode(state)
+        std = torch.exp(log_std)
+        log_normal = LogNormal(mean, std)
+        x_t = log_normal.rsample()
+        action = torch.tanh(x_t)
+        log_prob = log_normal.log_prob(x_t)
+        # Enforcing Action Bound
+        log_prob -= torch.log(1 - action.pow(2) + epsilon)
+        log_prob = log_prob.sum(1, keepdim=True)
+        return action, log_prob, x_t, mean, log_std
+
+class LaplacePolicy(nn.Module):
+    def __init__(self, num_inputs, num_actions, hidden_dim, args):
+        super(LaplacePolicy, self).__init__()
+
+        self.linear1 = nn.Linear(num_inputs, hidden_dim)
+        self.linear2 = nn.Linear(hidden_dim, hidden_dim)
+
+        self.mean_linear = nn.Linear(hidden_dim, num_actions)
+        self.log_scale_linear = nn.Linear(hidden_dim, num_actions)
+
+        self.apply(weights_init_)
+
+    def encode(self, state):
+        x = F.relu(self.linear1(state))
+        x = F.relu(self.linear2(x))
+        mean = self.mean_linear(x)
+        log_scale = self.log_scale_linear(x)
+        log_scale = torch.clamp(log_scale, min=LOG_SIG_MIN, max=LOG_SIG_MAX)
+        return mean, log_scale
+
+    def forward(self, state):
+        mean, log_scale = self.encode(state)
+        scale = torch.exp(log_scale)
+        laplace = Laplace(mean, scale)
+        x_t = laplace.rsample()
+        action = torch.tanh(x_t)
+        log_prob = laplace.log_prob(x_t)
+        std = torch.sqrt(laplace.variance)
         log_std = torch.log(std)
         # Enforcing Action Bound
         log_prob -= torch.log(1 - action.pow(2) + epsilon)
@@ -146,7 +212,6 @@ class DeterministicPolicy(nn.Module):
         x = F.relu(self.linear2(x))
         mean = torch.tanh(self.mean(x))
         return mean
-
 
     def forward(self, state):
         mean = self.forward(state)
