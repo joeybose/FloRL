@@ -4,5 +4,3 @@
 *.zip
 *.pt
 __pycache__/**
-settings.json
-pytorch-soft-actor-critic/settings.json
