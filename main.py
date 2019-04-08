@@ -144,13 +144,17 @@ if __name__ == "__main__":
 	if args.comet:
 		args.experiment.log_metric("Evaluation Reward", evaluations[-1],step=global_step)
 
-	total_timesteps = 0
-	timesteps_since_eval = 0
-	episode_num = 0
-	done = True
-	while total_timesteps < args.max_timesteps:
-            if done:
-                if total_timesteps != 0:
+	total_timesteps = 0 # how many times steps over all, sum of time steps for each action
+	timesteps_since_eval = 0 # time step to keep track how many times I've evaluated
+	episode_num = 0 # number of episodes
+	done = True # whether or not an episode is done or not
+
+	while total_timesteps < args.max_timesteps: # loop until desired timesteps
+
+            if done: # if we are at the end of an episode
+
+                if total_timesteps != 0: # if we actually at end of episode
+                    # update polcies and print info
                     print(("Total T: %d Episode Num: %d Episode T: %d Reward: %f")\
                                 % (total_timesteps,episode_num,episode_timesteps,episode_reward))
                     if args.policy_name == "TD3":
@@ -194,10 +198,12 @@ if __name__ == "__main__":
                 episode_num += 1
 
             # Select action randomly or according to policy
-            if total_timesteps < args.start_timesteps:
+            if total_timesteps < args.start_timesteps: # we want to run random policy at start
                 action = env.action_space.sample()
+
             else:
                 action = policy.select_action(np.array(obs))
+
                 if args.policy_name=="softTD3":
                     action = (action).clip(env.action_space.low, env.action_space.high)
                 else:
