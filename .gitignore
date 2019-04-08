@@ -3,4 +3,6 @@
 *.tar
 *.zip
 *.pt
+*.swp
 __pycache__/**
+pytorch-soft-actor-critic/__pycache__/**
