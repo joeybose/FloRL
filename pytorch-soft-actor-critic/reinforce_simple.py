@@ -36,12 +36,12 @@ class Policy(nn.Module):
         x = inputs
         x = F.relu(self.linear(x))
 
-        mu = self.mean(x)
+        mean = self.mean(x)
         log_std = self.log_std(x) # if more than one action this will give you the diagonal elements of a diagonal covariance matrix
         log_std = torch.clamp(log_std, min=LOG_SIG_MIN, max=LOG_SIG_MAX) # We limit the variance by forcing within a range of -2,20
         std = log_std.exp()
 
-        return mu, std
+        return mean, std
 
 class REINFORCE:
 
@@ -181,10 +181,10 @@ if __name__ == '__main__':
     max_episodes = 1000
     total_episodes = 0
     # set up comet
-    experiment = Experiment(api_key="BUXbNT79Q2PEtRkuX9swzxspZ",
-                            project_name="florl", workspace="nadeem-ward")
+    # experiment = Experiment(api_key="BUXbNT79Q2PEtRkuX9swzxspZ",
+    #                        project_name="florl", workspace="nadeem-ward")
 
-    experiment.set_name("FLORL")
+     #experiment.set_name("FLORL")
 
 
     while total_episodes < max_episodes:
@@ -209,8 +209,8 @@ if __name__ == '__main__':
             evaluate_policy(policy)
 
         loss = policy.train(trajectory_info)
-        experiment.log_metric("loss value", loss, step = total_episodes)
-        experiment.log_metric("episode reward", episode_reward, step =total_episodes)
+#        experiment.log_metric("loss value", loss, step = total_episodes)
+#        experiment.log_metric("episode reward", episode_reward, step =total_episodes)
 
 
     env.close()
