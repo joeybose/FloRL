@@ -6,7 +6,10 @@ import torch.nn.functional as F
 import torch.nn as nn
 from torch.optim import Adam
 from utils import soft_update, hard_update
-from model import GaussianPolicy, ExponentialPolicy, LogNormalPolicy, LaplacePolicy, QNetwork, ValueNetwork, DeterministicPolicy
+# from model import GaussianPolicy, ExponentialPolicy,
+# LogNormalPolicy,LaplacePolicy, QNetwork, ValueNetwork, DeterministicPolicy,
+# StateEncoder
+from model import *
 from flows import *
 import ipdb
 
@@ -29,6 +32,8 @@ class SAC(object):
                 args.hidden_size).to(device)
         self.critic_optim = Adam(self.critic.parameters(), lr=args.lr)
         self.alpha = args.alpha
+        self.flow_model = args.flow_model
+        self.mean_entropy = args.mean_entropy
 
         if self.policy_type == "Gaussian" or self.policy_type == "Exponential" or self.policy_type == "LogNormal" or self.policy_type == "Laplace":
             # Target Entropy = −dim(A) (e.g. , -6 for HalfCheetah-v2) as given in the paper
@@ -93,8 +98,9 @@ class SAC(object):
                                 args.cond_label_size,batch_norm=not
                                 args.no_batch_norm).to(device)
             elif args.flow_model =='planar':
-                self.policy = PlanarBase(args.n_blocks,self.num_inputs,self.action_space,
-                           args.flow_hidden_size,args.n_hidden,device).to(device)
+                self.state_enc = StateEncoder(self.num_inputs,self.action_space,args.hidden_size).to(device)
+                self.policy = PlanarBase(self.state_enc,args.n_blocks,self.num_inputs,self.action_space,
+                           args.flow_hidden_size,args.n_hidden,device,args.num_entropy_samples).to(device)
             else:
                 raise ValueError('Unrecognized model.')
             self.policy_optim = Adam(self.policy.parameters(), lr=args.lr, weight_decay=1e-6)
@@ -123,10 +129,10 @@ class SAC(object):
             self.policy.eval()
             if len(state.size()) > 2:
                 state = state.view(-1,self.num_inputs)
-            if self.policy_type != 'Flow':
-                _, _, _, action, _ = self.policy(state)
-            else:
+            if self.policy_type == 'Flow' and self.flow_model !='planar':
                 _, _, _, action, _ = self.policy.inverse(state)
+            else:
+                _, _, _, action, _ = self.policy(state)
             if self.policy_type == "Gaussian" or self.policy_type == "Exponential" or self.policy_type == "LogNormal" or self.policy_type == "Laplace":
                 action = torch.tanh(action)
             elif self.policy_type == "Flow":
@@ -150,8 +156,13 @@ class SAC(object):
         up training, especially on harder task.
         """
         expected_q1_value, expected_q2_value = self.critic(state_batch, action_batch)
-        if self.policy_type == 'Flow':
+        if self.policy_type == 'Flow' and self.flow_model !='planar':
             new_action, log_prob, _, mean, log_std = self.policy.inverse(state_batch)
+        elif self.policy_type == 'Flow' and self.flow_model =='planar':
+            new_action, log_prob, _, mean, log_std = self.policy(state_batch)
+            if self.mean_entropy:
+                mean_log_prob = self.policy.calc_entropy(state_batch)
+                log_prob = mean_log_prob
         else:
             new_action, log_prob, _, mean, log_std = self.policy(state_batch)
 
@@ -169,7 +180,6 @@ class SAC(object):
             else:
                 alpha_loss = torch.tensor(0.)
                 alpha_logs = self.alpha # For TensorboardX logs
-
 
             """
             Including a separate function approximator for the soft value can stabilize training.

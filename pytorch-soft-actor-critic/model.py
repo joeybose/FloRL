@@ -220,3 +220,17 @@ class DeterministicPolicy(nn.Module):
         action = mean + noise
         return action, torch.tensor(0.), torch.tensor(0.), mean, torch.tensor(0.)
 
+class StateEncoder(nn.Module):
+    def __init__(self, num_inputs, num_actions, hidden_dim):
+        super(StateEncoder, self).__init__()
+        self.linear1 = nn.Linear(num_inputs, hidden_dim)
+        self.linear2 = nn.Linear(hidden_dim, hidden_dim)
+        self.linear3 = nn.Linear(hidden_dim, num_actions)
+        self.apply(weights_init_)
+
+    def forward(self, state):
+        x1 = F.relu(self.linear1(state))
+        x2 = F.relu(self.linear2(x1))
+        x3 = F.relu(self.linear3(x2))
+        return x3, x2
+

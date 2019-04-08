@@ -155,8 +155,8 @@ if __name__ == '__main__':
                         help='Clipping for gradient norm')
     parser.add_argument('--num_steps', type=int, default=1000001, metavar='N',
                         help='maximum number of steps (default: 1000000)')
-    parser.add_argument('--hidden_size', type=int, default=256, metavar='N',
-                        help='hidden size (default: 256)')
+    parser.add_argument('--hidden_size', type=int, default=100, metavar='N',
+                        help='hidden size (default: 100)')
     parser.add_argument('--updates_per_step', type=int, default=1, metavar='N',
                         help='model updates per simulator step (default: 1)')
     parser.add_argument('--start_steps', type=int, default=10000, metavar='N',
@@ -171,6 +171,8 @@ if __name__ == '__main__':
             help='additional info in output filename to describe experiments')
     parser.add_argument('--n_blocks', type=int, default=5,\
                         help='Number of blocks to stack in a model (MADE in MAF; Coupling+BN in RealNVP).')
+    parser.add_argument('--num_entropy_samples', type=int, default=10,\
+                        help='Number of entropy samples to take mean from')
     parser.add_argument('--n_components', type=int, default=1,\
                         help='Number of Gaussian clusters for mixture of gaussians models.')
     parser.add_argument('--flow_hidden_size', type=int, default=100,\
@@ -183,6 +185,7 @@ if __name__ == '__main__':
     parser.add_argument('--conditional', default=False, action='store_true',\
                         help='Whether to use a conditional model.')
     parser.add_argument('--no_batch_norm', action='store_true')
+    parser.add_argument('--mean_entropy', action='store_true', help='Use Mean Entropy instead of per sample entropy')
     parser.add_argument('--flow_model', default='maf', help='Which model to use: made, maf.')
 
     args = parser.parse_args()

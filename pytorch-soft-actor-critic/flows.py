@@ -18,7 +18,8 @@ def weights_init_(m):
         torch.nn.init.constant_(m.bias, 0)
 
 class PlanarBase(nn.Module):
-    def __init__(self, n_blocks, state_size, input_size, hidden_size, n_hidden, device):
+    def __init__(self, state_enc, n_blocks, state_size, input_size,
+                 hidden_size, n_hidden, device, num_entropy_samples):
         super().__init__()
         self.l1 = nn.Linear(state_size, hidden_size)
         self.l2 = nn.Linear(hidden_size,hidden_size)
@@ -27,7 +28,9 @@ class PlanarBase(nn.Module):
         self.device = device
         self.z_size = input_size
         self.num_flows = n_blocks
+        self.state_enc = state_enc
         self.flow = Planar
+        self.N = num_entropy_samples
         # Amortized flow parameters
         self.amor_u = nn.Linear(hidden_size, self.num_flows * input_size)
         self.amor_w = nn.Linear(hidden_size, self.num_flows * input_size)
@@ -41,48 +44,70 @@ class PlanarBase(nn.Module):
         self.apply(weights_init_)
 
     def encode(self, state):
-        x = F.relu(self.l1(state))
-        x = F.relu(self.l2(x))
-        mean = self.mu(x)
-        log_std = self.log_std(x)
-        log_std = torch.clamp(log_std, min=LOG_SIG_MIN, max=LOG_SIG_MAX)
-        return mean, log_std, x
+        x = self.state_enc(state)
+        # x = F.relu(self.l1(state))
+        # x = F.relu(self.l2(x))
+        # mean = self.mu(x)
+        # log_std = self.log_std(x)
+        # log_std = torch.clamp(log_std, min=LOG_SIG_MIN, max=LOG_SIG_MAX)
+        # return mean, log_std, x
+        return x
 
     def forward(self, state):
         batch_size = state.size(0)
-        mean, log_std, x = self.encode(state)
-        std = log_std.exp()
+        # mean, log_std, x = self.encode(state)
+        # std = log_std.exp()
+        mean = torch.zeros(batch_size,self.z_size).to(self.device)
+        std = torch.ones(batch_size,self.z_size).to(self.device)
+        encoded_state, hidden_state = self.encode(state)
         normal = Normal(mean, std)
-        x_t = normal.rsample()  # for reparameterization trick (mean + std * N(0,1))
-        action = torch.tanh(x_t)
-        log_prob = normal.log_prob(x_t)
+        noise = normal.sample()
+        action = noise
+        log_prob_prior = normal.log_prob(noise)
         # Enforcing Action Bound
-        log_prob -= torch.log(1 - action.pow(2) + epsilon)
-        log_prob = log_prob.sum(1, keepdim=True)
+        # log_prob -= torch.log(1 - action.pow(2) + epsilon)
+        # log_prob = log_prob.sum(1, keepdim=True)
         z = [action]
-        u = self.amor_u(x).view(batch_size, self.num_flows, self.z_size, 1)
-        w = self.amor_w(x).view(batch_size, self.num_flows, 1, self.z_size)
-        b = self.amor_b(x).view(batch_size, self.num_flows, 1, 1)
+        u = self.amor_u(hidden_state).view(batch_size, self.num_flows, self.z_size, 1)
+        w = self.amor_w(hidden_state).view(batch_size, self.num_flows, 1, self.z_size)
+        b = self.amor_b(hidden_state).view(batch_size, self.num_flows, 1, 1)
 
         self.log_det_j = torch.zeros(batch_size).to(self.device)
 
         for k in range(self.num_flows):
             flow_k = getattr(self, 'flow_' + str(k))
-            z_k, log_det_jacobian = flow_k(z[k], u[:, k, :, :],
-                                           w[:, k, :, :], b[:, k, :, :])
+            if k == 1:
+                z_k, log_det_jacobian = flow_k(z[k], u[:, k, :, :],\
+                                               w[:, k, :, :], b[:, k, :,:],\
+                                               encoded_state=encoded_state)
+            else:
+                z_k, log_det_jacobian = flow_k(z[k], u[:, k, :, :],\
+                                               w[:, k, :, :], b[:, k, :,:])
             z.append(z_k)
             self.log_det_j += log_det_jacobian
 
         action = z[-1]
-        log_prob_final_action = log_prob.squeeze() - self.log_det_j
+        # log_prob_final_action = log_prob_prior.squeeze() - self.log_det_j
+        log_prob_final_action = log_prob_prior
 
         probability_final_action = torch.exp(log_prob_final_action)
-        entropy = (probability_final_action * log_prob_final_action)
         normalized_action = torch.tanh(action)
+        # Enforcing Action Bound
+        log_prob_final_action -= torch.log(1 - action.pow(2) + epsilon)
+        log_prob_final_action = log_prob_final_action.sum(1, keepdim=True)
+        log_prob_final_action -= self.log_det_j.unsqueeze(1)
         np_action = action.cpu().data.numpy().flatten()
         if np.isnan(np_action[0]):
             ipdb.set_trace()
-        return normalized_action, log_prob, action , mean, std
+        return normalized_action, log_prob_final_action, action , mean, std
+
+    def calc_entropy(self,state):
+        mean_log_prob = 0
+        for i in range(0,self.N):
+            _, log_prob, _ , _ , _ = self.forward(state)
+            mean_log_prob += log_prob
+        mean_log_prob = mean_log_prob / self.N
+        return mean_log_prob
 
 class PlanarFlow(nn.Module):
     def __init__(self, D):
@@ -148,7 +173,7 @@ class Planar(nn.Module):
 
         return 1 - self.h(x) ** 2
 
-    def forward(self, zk, u, w, b):
+    def forward(self, zk, u, w, b, encoded_state=None):
         """
         Forward pass. Assumes amortized u, w and b. Conditions on diagonals of u and w for invertibility
         will be be satisfied inside this function. Computes the following transformation:
@@ -161,6 +186,8 @@ class Planar(nn.Module):
         shape b = (batch_size, 1, 1)
         shape z = (batch_size, z_size).
         """
+        if encoded_state is not None:
+            zk = zk + encoded_state
 
         zk = zk.unsqueeze(2)
 
@@ -176,12 +203,15 @@ class Planar(nn.Module):
         z = z.squeeze(2)
 
         # compute logdetJ
-        psi = w * self.der_h(wzb)
+        if encoded_state is not None:
+            wzb = torch.bmm(w, zk - encoded_state.unsqueeze(2)) + b
+            psi = w * self.der_h(wzb)
+        else:
+            psi = w * self.der_h(wzb)
         log_det_jacobian = torch.log(torch.abs(1 + torch.bmm(psi, u_hat)))
         log_det_jacobian = log_det_jacobian.squeeze(2).squeeze(1)
 
         return z, log_det_jacobian
-
 
 # All code below this line is taken from
 # https://github.com/kamenbliznashki/normalizing_flows/blob/master/maf.py
