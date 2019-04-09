@@ -14,6 +14,8 @@ from model import *
 from flows import *
 import flows_two as fnn
 import ipdb
+LOG_SIG_MAX = 2
+LOG_SIG_MIN = -20
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -101,7 +103,7 @@ class SAC(object):
                 modules = [state_enc]
                 for _ in range(args.n_blocks):
                     modules += [
-                        fnn.MADE(self.action_space, args.hidden_size, act='relu'),
+                        fnn.MADE(self.action_space, args.hidden_size, act='tanh'),
                         fnn.BatchNormFlow(self.action_space),
                         fnn.Reverse(self.action_space)
                     ]
@@ -278,21 +280,23 @@ class SAC(object):
             q2_value_loss.backward()
             self.critic_optim.step()
 
-            if self.policy_type == "Gaussian" or self.policy_type == "Exponential" or self.policy_type == "LogNormal" or self.policy_type == "Laplace":
+            if self.policy_type == "Gaussian" or self.policy_type == "Exponential" or self.policy_type == "LogNormal" or  self.policy_type == "Laplace":
                 self.value_optim.zero_grad()
                 value_loss.backward()
                 self.value_optim.step()
             else:
                 value_loss = torch.tensor(0.)
             self.policy_optim.zero_grad()
+            # Clip weights of policy
             policy_loss.backward()
         if self.policy_type == 'Exponential' or self.policy_type == "LogNormal" or self.policy_type == "Laplace" or self.policy_type == 'Flow':
             torch.nn.utils.clip_grad_norm_(self.policy.parameters(),self.clip)
         self.policy_optim.step()
 
-        # Clip weights of policy
+        # # Clip weights of policy
         for p in self.policy.parameters():
-            p.data.clamp_(-self.clip_value, self.clip_value)
+            p.data.clamp_(-10*self.clip_value, 10*self.clip_value)
+            # p.data.clamp_(min=LOG_SIG_MIN, max=LOG_SIG_MAX)
 
         """
         We update the target weights to match the current value function weights periodically
