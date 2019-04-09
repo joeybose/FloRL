@@ -66,6 +66,34 @@ class QNetwork(nn.Module):
         return x1, x2
 
 
+class GaussianEncoder(nn.Module):
+    def __init__(self, num_inputs, num_actions, hidden_dim, args):
+        super(GaussianEncoder, self).__init__()
+
+        self.linear1 = nn.Linear(num_inputs, hidden_dim)
+        self.linear2 = nn.Linear(hidden_dim, hidden_dim)
+
+        self.mean_linear = nn.Linear(hidden_dim, num_actions)
+        self.log_std_linear = nn.Linear(hidden_dim, num_actions)
+
+        self.apply(weights_init_)
+
+    def encode(self, state):
+        x = F.relu(self.linear1(state))
+        x = F.relu(self.linear2(x))
+        mean = self.mean_linear(x)
+        log_std = self.log_std_linear(x)
+        log_std = torch.clamp(log_std, min=LOG_SIG_MIN, max=LOG_SIG_MAX)
+        return mean, log_std
+
+    def forward(self, state):
+        mean, log_std = self.encode(state)
+        std = log_std.exp()
+        normal = Normal(mean, std)
+        action = normal.rsample()  # for reparameterization trick (mean + std * N(0,1))
+        log_prob = normal.log_prob(action)
+        return action, log_prob
+
 class GaussianPolicy(nn.Module):
     def __init__(self, num_inputs, num_actions, hidden_dim, args):
         super(GaussianPolicy, self).__init__()
@@ -221,7 +249,7 @@ class DeterministicPolicy(nn.Module):
         return action, torch.tensor(0.), torch.tensor(0.), mean, torch.tensor(0.)
 
 class StateEncoder(nn.Module):
-    def __init__(self, num_inputs, num_actions, hidden_dim):
+    def __init__(self, num_inputs, num_actions, hidden_dim, num_outputs):
         super(StateEncoder, self).__init__()
         self.linear1 = nn.Linear(num_inputs, hidden_dim)
         self.linear2 = nn.Linear(hidden_dim, hidden_dim)
