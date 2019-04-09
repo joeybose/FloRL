@@ -44,29 +44,27 @@ class PlanarBase(nn.Module):
         self.apply(weights_init_)
 
     def encode(self, state):
-        x = self.state_enc(state)
-        # x = F.relu(self.l1(state))
-        # x = F.relu(self.l2(x))
-        # mean = self.mu(x)
-        # log_std = self.log_std(x)
-        # log_std = torch.clamp(log_std, min=LOG_SIG_MIN, max=LOG_SIG_MAX)
-        # return mean, log_std, x
-        return x
+        # x = self.state_enc(state)
+        x = F.relu(self.l1(state))
+        x = F.relu(self.l2(x))
+        mean = self.mu(x)
+        log_std = self.log_std(x)
+        log_std = torch.clamp(log_std, min=LOG_SIG_MIN, max=LOG_SIG_MAX)
+        mean = torch.clamp(mean, min=LOG_SIG_MIN, max=LOG_SIG_MAX)
+        return mean, log_std, x
+        # return x
 
     def forward(self, state):
         batch_size = state.size(0)
-        # mean, log_std, x = self.encode(state)
-        # std = log_std.exp()
-        mean = torch.zeros(batch_size,self.z_size).to(self.device)
-        std = torch.ones(batch_size,self.z_size).to(self.device)
-        encoded_state, hidden_state = self.encode(state)
+        mean, log_std, hidden_state = self.encode(state)
+        std = log_std.exp()
+        # mean = torch.zeros(batch_size,self.z_size).to(self.device)
+        # std = torch.ones(batch_size,self.z_size).to(self.device)
+        # encoded_state, hidden_state = self.encode(state)
         normal = Normal(mean, std)
-        noise = normal.sample()
+        noise = normal.rsample()
         action = noise
         log_prob_prior = normal.log_prob(noise)
-        # Enforcing Action Bound
-        # log_prob -= torch.log(1 - action.pow(2) + epsilon)
-        # log_prob = log_prob.sum(1, keepdim=True)
         z = [action]
         u = self.amor_u(hidden_state).view(batch_size, self.num_flows, self.z_size, 1)
         w = self.amor_w(hidden_state).view(batch_size, self.num_flows, 1, self.z_size)
@@ -76,13 +74,13 @@ class PlanarBase(nn.Module):
 
         for k in range(self.num_flows):
             flow_k = getattr(self, 'flow_' + str(k))
-            if k == 1:
-                z_k, log_det_jacobian = flow_k(z[k], u[:, k, :, :],\
-                                               w[:, k, :, :], b[:, k, :,:],\
-                                               encoded_state=encoded_state)
-            else:
-                z_k, log_det_jacobian = flow_k(z[k], u[:, k, :, :],\
-                                               w[:, k, :, :], b[:, k, :,:])
+            # if k == 1:
+                # z_k, log_det_jacobian = flow_k(z[k], u[:, k, :, :],\
+                                               # w[:, k, :, :], b[:, k, :,:],\
+                                               # encoded_state=encoded_state)
+            # else:
+            z_k, log_det_jacobian = flow_k(z[k], u[:, k, :, :],\
+                                           w[:, k, :, :], b[:, k, :,:])
             z.append(z_k)
             self.log_det_j += log_det_jacobian
 
@@ -90,16 +88,16 @@ class PlanarBase(nn.Module):
         # log_prob_final_action = log_prob_prior.squeeze() - self.log_det_j
         log_prob_final_action = log_prob_prior
 
-        probability_final_action = torch.exp(log_prob_final_action)
-        normalized_action = torch.tanh(action)
+        # normalized_action = torch.tanh(action)
         # Enforcing Action Bound
-        log_prob_final_action -= torch.log(1 - action.pow(2) + epsilon)
+        # log_prob_final_action -= torch.log(1 - action.pow(2) + epsilon)
         log_prob_final_action = log_prob_final_action.sum(1, keepdim=True)
         log_prob_final_action -= self.log_det_j.unsqueeze(1)
         np_action = action.cpu().data.numpy().flatten()
         if np.isnan(np_action[0]):
             ipdb.set_trace()
-        return normalized_action, log_prob_final_action, action , mean, std
+        # return normalized_action, log_prob_final_action, action , mean, log_std
+        return action, log_prob_final_action, action , mean, log_std
 
     def calc_entropy(self,state):
         mean_log_prob = 0

@@ -55,7 +55,6 @@ def main(args):
 
     for i_episode in itertools.count():
         state = env.reset()
-
         episode_reward = 0
         while True:
             if args.start_steps > total_numsteps:
@@ -82,7 +81,8 @@ def main(args):
                         args.experiment.log_metric("Loss Critic 2",critic_2_loss,step=updates)
                         args.experiment.log_metric("Loss Policy",policy_loss,step=updates)
                         args.experiment.log_metric("Loss Entropy",ent_loss,step=updates)
-                        args.experiment.log_metric("Entropy Temperature",alpha,step=updates)
+                        if args.automatic_entropy_tuning:
+                            args.experiment.log_metric("Entropy Temperature",alpha.item(),step=updates)
                     updates += 1
 
             state = next_state
@@ -145,8 +145,7 @@ if __name__ == '__main__':
                         help='learning rate (default: 0.0003)')
     parser.add_argument('--alpha', type=float, default=0.1, metavar='G',
                         help='Temperature parameter α determines the relative importance of the entropy term against the reward (default: 0.1)')
-    parser.add_argument('--automatic_entropy_tuning', type=bool, default=False, metavar='G',
-                        help='Temperature parameter α automaically adjusted.')
+    parser.add_argument('--automatic_entropy_tuning', action='store_true', help='Temperature parameter α automaically adjusted.')
     parser.add_argument('--seed', type=int, default=456, metavar='N',
                         help='random seed (default: 456)')
     parser.add_argument('--batch_size', type=int, default=1024, metavar='N',
@@ -173,11 +172,13 @@ if __name__ == '__main__':
                         help='Number of blocks to stack in a model (MADE in MAF; Coupling+BN in RealNVP).')
     parser.add_argument('--num_entropy_samples', type=int, default=10,\
                         help='Number of entropy samples to take mean from')
+    parser.add_argument("--clip_value", type=float, default=0.01, help="lower and upper clip value for policy weights")
     parser.add_argument('--n_components', type=int, default=1,\
                         help='Number of Gaussian clusters for mixture of gaussians models.')
     parser.add_argument('--flow_hidden_size', type=int, default=100,\
                         help='Hidden layer size for MADE (and each MADE block in an MAF).')
     parser.add_argument('--n_hidden', type=int, default=1, help='Number of hidden layers in each MADE.')
+    parser.add_argument('--num_state_out', type=int, default=16, help='Output dim')
     parser.add_argument('--activation_fn', type=str, default='relu',\
                         help='What activation function to use in the MADEs.')
     parser.add_argument('--input_order', type=str, default='sequential',\
@@ -187,6 +188,7 @@ if __name__ == '__main__':
     parser.add_argument('--no_batch_norm', action='store_true')
     parser.add_argument('--mean_entropy', action='store_true', help='Use Mean Entropy instead of per sample entropy')
     parser.add_argument('--flow_model', default='maf', help='Which model to use: made, maf.')
+    parser.add_argument('--gaussian_encoder', action='store_true', help='Use a Gaussian Encoder for States')
 
     args = parser.parse_args()
     args.cond_label_size = None

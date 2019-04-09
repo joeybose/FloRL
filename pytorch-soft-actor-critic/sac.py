@@ -5,12 +5,14 @@ import torch
 import torch.nn.functional as F
 import torch.nn as nn
 from torch.optim import Adam
+from torch import autograd
 from utils import soft_update, hard_update
 # from model import GaussianPolicy, ExponentialPolicy,
 # LogNormalPolicy,LaplacePolicy, QNetwork, ValueNetwork, DeterministicPolicy,
 # StateEncoder
 from model import *
 from flows import *
+import flows_two as fnn
 import ipdb
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -23,6 +25,8 @@ class SAC(object):
         self.gamma = args.gamma
         self.tau = args.tau
         self.clip = args.clip
+        self.N = 10
+        self.clip_value = args.clip_value
 
         self.policy_type = args.policy
         self.target_update_interval = args.target_update_interval
@@ -66,6 +70,10 @@ class SAC(object):
             self.value_optim = Adam(self.value.parameters(), lr=args.lr)
             hard_update(self.value_target, self.value)
         elif self.policy_type == "Flow":
+            if self.automatic_entropy_tuning == True:
+                self.target_entropy = -torch.prod(torch.Tensor(action_space.shape)).item()
+                self.log_alpha = torch.zeros(1, requires_grad=True).to(device)
+                self.alpha_optim = Adam([self.log_alpha], lr=args.lr)
             if args.flow_model == 'made':
                 self.policy = MADE(self.action_space,self.num_inputs,args.hidden_size,
                                    args.n_hidden, args.cond_label_size,
@@ -84,6 +92,20 @@ class SAC(object):
                                   args.cond_label_size, args.activation_fn,
                                   args.input_order, batch_norm=not
                                   args.no_batch_norm).to(device)
+            elif args.flow_model == 'maf-2':
+                if args.gaussian_encoder:
+                    state_enc = GaussianEncoder(self.num_inputs, self.action_space,\
+                            args.hidden_size,args).to(device)
+                else:
+                    state_enc = StateEncoder(self.num_inputs,self.action_space,args.hidden_size,args.num_state_out).to(device)
+                modules = [state_enc]
+                for _ in range(args.n_blocks):
+                    modules += [
+                        fnn.MADE(self.action_space, args.hidden_size, act='relu'),
+                        fnn.BatchNormFlow(self.action_space),
+                        fnn.Reverse(self.action_space)
+                    ]
+                self.policy = fnn.FlowSequential(*modules).to(device)
             elif args.flow_model == 'mafmog':
                 assert args.n_components > 1, 'Specify more than 1 component for mixture of gaussians models.'
                 self.policy = MAFMOG(args.n_blocks,self.num_inputs,args.n_components,
@@ -124,13 +146,22 @@ class SAC(object):
             self.policy.train()
             if len(state.size()) > 2:
                 state = state.view(-1,self.num_inputs)
-            action, _, _, _, _ = self.policy(state)
+            if self.flow_model == 'maf-2':
+                action, _ = self.policy(state,mode='direct')
+            else:
+                action, _, _, _, _ = self.policy(state)
         else:
             self.policy.eval()
             if len(state.size()) > 2:
                 state = state.view(-1,self.num_inputs)
-            if self.policy_type == 'Flow' and self.flow_model !='planar':
+            if self.policy_type == 'Flow' and self.flow_model =='maf':
                 _, _, _, action, _ = self.policy.inverse(state)
+            elif self.policy_type == 'Flow' and self.flow_model =='maf-2':
+                # mean_action = 0
+                # for i in range(0,self.N):
+                _, action = self.policy(state,mode='direct')
+                    # mean_action += action
+                # action = mean_action / self.N
             else:
                 _, _, _, action, _ = self.policy(state)
             if self.policy_type == "Gaussian" or self.policy_type == "Exponential" or self.policy_type == "LogNormal" or self.policy_type == "Laplace":
@@ -139,7 +170,6 @@ class SAC(object):
                 action = torch.tanh(action)
             else:
                 pass
-        #action = torch.tanh(action)
         action = action.detach().cpu().numpy()
         return action[0]
 
@@ -155,109 +185,114 @@ class SAC(object):
         to degrade performance of value based methods. Two Q-functions also significantly speed
         up training, especially on harder task.
         """
-        expected_q1_value, expected_q2_value = self.critic(state_batch, action_batch)
-        if self.policy_type == 'Flow' and self.flow_model !='planar':
-            new_action, log_prob, _, mean, log_std = self.policy.inverse(state_batch)
-        elif self.policy_type == 'Flow' and self.flow_model =='planar':
-            new_action, log_prob, _, mean, log_std = self.policy(state_batch)
-            if self.mean_entropy:
-                mean_log_prob = self.policy.calc_entropy(state_batch)
-                log_prob = mean_log_prob
-        else:
-            new_action, log_prob, _, mean, log_std = self.policy(state_batch)
-
-        if self.policy_type == "Gaussian" or self.policy_type == "Exponential" or self.policy_type == "LogNormal" or self.policy_type == "Laplace" or self.policy_type == 'Flow':
-            if self.automatic_entropy_tuning:
-                """
-                Alpha Loss
-                """
-                alpha_loss = -(self.log_alpha * (log_prob + self.target_entropy).detach()).mean()
-                self.alpha_optim.zero_grad()
-                alpha_loss.backward()
-                self.alpha_optim.step()
-                self.alpha = self.log_alpha.exp()
-                alpha_logs = self.alpha.clone() # For TensorboardX logs
+        with autograd.detect_anomaly():
+            expected_q1_value, expected_q2_value = self.critic(state_batch, action_batch)
+            if self.policy_type == 'Flow' and self.flow_model =='maf':
+                new_action, log_prob, _, mean, log_std = self.policy.inverse(state_batch)
+            if self.policy_type == 'Flow' and self.flow_model =='maf-2':
+                new_action, log_prob, _, mean, log_std = self.policy(state_batch,mode='direct',return_prob=True)
+            elif self.policy_type == 'Flow' and self.flow_model =='planar':
+                new_action, log_prob, _, mean, log_std = self.policy(state_batch)
+                if self.mean_entropy:
+                    mean_log_prob = self.policy.calc_entropy(state_batch)
+                    log_prob = mean_log_prob
             else:
+                new_action, log_prob, _, mean, log_std = self.policy(state_batch)
+
+            if self.policy_type == "Gaussian" or self.policy_type == "Exponential" or self.policy_type == "LogNormal" or self.policy_type == "Laplace" or self.policy_type == 'Flow':
+                if self.automatic_entropy_tuning:
+                    """
+                    Alpha Loss
+                    """
+                    alpha_loss = -(self.log_alpha * (log_prob + self.target_entropy).detach()).mean()
+                    self.alpha_optim.zero_grad()
+                    alpha_loss.backward()
+                    self.alpha_optim.step()
+                    self.alpha = self.log_alpha.exp()
+                    alpha_logs = self.alpha.clone() # For TensorboardX logs
+                else:
+                    alpha_loss = torch.tensor(0.)
+                    alpha_logs = self.alpha # For TensorboardX logs
+
+                """
+                Including a separate function approximator for the soft value can stabilize training.
+                """
+                expected_value = self.value(state_batch)
+                target_value = self.value_target(next_state_batch)
+                next_q_value = reward_batch + mask_batch * self.gamma * (target_value).detach()
+            else:
+                """
+                There is no need in principle to include a separate function approximator for the state value.
+                We use a target critic network for deterministic policy and eradicate the value value network completely.
+                """
                 alpha_loss = torch.tensor(0.)
-                alpha_logs = self.alpha # For TensorboardX logs
+                alpha_logs = self.alpha  # For TensorboardX logs
+                next_state_action, _, _, _, _, = self.policy(next_state_batch)
+                target_critic_1, target_critic_2 = self.critic_target(next_state_batch, next_state_action)
+                target_critic = torch.min(target_critic_1, target_critic_2)
+                next_q_value = reward_batch + mask_batch * self.gamma * (target_critic).detach()
 
             """
-            Including a separate function approximator for the soft value can stabilize training.
+            Soft Q-function parameters can be trained to minimize the soft Bellman residual
+            JQ = 𝔼(st,at)~D[0.5(Q1(st,at) - r(st,at) - γ(𝔼st+1~p[V(st+1)]))^2]
+            ∇JQ = ∇Q(st,at)(Q(st,at) - r(st,at) - γV(target)(st+1))
             """
-            expected_value = self.value(state_batch)
-            target_value = self.value_target(next_state_batch)
-            next_q_value = reward_batch + mask_batch * self.gamma * (target_value).detach()
-        else:
+            q1_value_loss = F.mse_loss(expected_q1_value, next_q_value)
+            q2_value_loss = F.mse_loss(expected_q2_value, next_q_value)
+            q1_new, q2_new = self.critic(state_batch, new_action)
+            expected_new_q_value = torch.min(q1_new, q2_new)
+
+            if self.policy_type == "Gaussian" or self.policy_type == "Exponential" or self.policy_type == "LogNormal" or self.policy_type == "Laplace" or self.policy_type == 'Flow':
+                """
+                Including a separate function approximator for the soft value can stabilize training and is convenient to
+                train simultaneously with the other networks
+                Update the V towards the min of two Q-functions in order to reduce overestimation bias from function approximation error.
+                JV = 𝔼st~D[0.5(V(st) - (𝔼at~π[Qmin(st,at) - α * log π(at|st)]))^2]
+                ∇JV = ∇V(st)(V(st) - Q(st,at) + (α * logπ(at|st)))
+                """
+                next_value = expected_new_q_value - (self.alpha * log_prob)
+                value_loss = F.mse_loss(expected_value, next_value.detach())
+            else:
+                pass
+
             """
-            There is no need in principle to include a separate function approximator for the state value.
-            We use a target critic network for deterministic policy and eradicate the value value network completely.
+            Reparameterization trick is used to get a low variance estimator
+            f(εt;st) = action sampled from the policy
+            εt is an input noise vector, sampled from some fixed distribution
+            Jπ = 𝔼st∼D,εt∼N[α * logπ(f(εt;st)|st) − Q(st,f(εt;st))]
+            ∇Jπ = ∇log π + ([∇at (α * logπ(at|st)) − ∇at Q(st,at)])∇f(εt;st)
             """
-            alpha_loss = torch.tensor(0.)
-            alpha_logs = self.alpha  # For TensorboardX logs
-            next_state_action, _, _, _, _, = self.policy(next_state_batch)
-            target_critic_1, target_critic_2 = self.critic_target(next_state_batch, next_state_action)
-            target_critic = torch.min(target_critic_1, target_critic_2)
-            next_q_value = reward_batch + mask_batch * self.gamma * (target_critic).detach()
+            policy_loss = ((self.alpha * log_prob) - expected_new_q_value).mean()
 
-        """
-        Soft Q-function parameters can be trained to minimize the soft Bellman residual
-        JQ = 𝔼(st,at)~D[0.5(Q1(st,at) - r(st,at) - γ(𝔼st+1~p[V(st+1)]))^2]
-        ∇JQ = ∇Q(st,at)(Q(st,at) - r(st,at) - γV(target)(st+1))
-        """
-        q1_value_loss = F.mse_loss(expected_q1_value, next_q_value)
-        q2_value_loss = F.mse_loss(expected_q2_value, next_q_value)
-        q1_new, q2_new = self.critic(state_batch, new_action)
-        expected_new_q_value = torch.min(q1_new, q2_new)
+            # Regularization Loss
+            if self.policy_type == "Gaussian" or self.flow_model == 'planar' or self.policy_type == "Exponential" or self.policy_type == "LogNormal" or self.policy_type == "Laplace":
+                mean_loss = 0.001 * mean.pow(2).mean()
+                std_loss = 0.001 * log_std.pow(2).mean()
+                policy_loss += mean_loss + std_loss
 
-        if self.policy_type == "Gaussian" or self.policy_type == "Exponential" or self.policy_type == "LogNormal" or self.policy_type == "Laplace" or self.policy_type == 'Flow':
-            """
-            Including a separate function approximator for the soft value can stabilize training and is convenient to
-            train simultaneously with the other networks
-            Update the V towards the min of two Q-functions in order to reduce overestimation bias from function approximation error.
-            JV = 𝔼st~D[0.5(V(st) - (𝔼at~π[Qmin(st,at) - α * log π(at|st)]))^2]
-            ∇JV = ∇V(st)(V(st) - Q(st,at) + (α * logπ(at|st)))
-            """
-            next_value = expected_new_q_value - (self.alpha * log_prob)
-            value_loss = F.mse_loss(expected_value, next_value.detach())
-        else:
-            pass
+            self.critic_optim.zero_grad()
+            q1_value_loss.backward()
+            self.critic_optim.step()
 
-        """
-        Reparameterization trick is used to get a low variance estimator
-        f(εt;st) = action sampled from the policy
-        εt is an input noise vector, sampled from some fixed distribution
-        Jπ = 𝔼st∼D,εt∼N[α * logπ(f(εt;st)|st) − Q(st,f(εt;st))]
-        ∇Jπ = ∇log π + ([∇at (α * logπ(at|st)) − ∇at Q(st,at)])∇f(εt;st)
-        """
-        policy_loss = ((self.alpha * log_prob) - expected_new_q_value).mean()
+            self.critic_optim.zero_grad()
+            q2_value_loss.backward()
+            self.critic_optim.step()
 
-        # Regularization Loss
-        if self.policy_type == "Gaussian" or self.policy_type == "Exponential" or self.policy_type == "LogNormal" or self.policy_type == "Laplace":
-            mean_loss = 0.001 * mean.pow(2).mean()
-            std_loss = 0.001 * log_std.pow(2).mean()
-            policy_loss += mean_loss + std_loss
-
-        self.critic_optim.zero_grad()
-        q1_value_loss.backward()
-        self.critic_optim.step()
-
-        self.critic_optim.zero_grad()
-        q2_value_loss.backward()
-        self.critic_optim.step()
-
-        if self.policy_type == "Gaussian" or self.policy_type == "Exponential" or self.policy_type == "LogNormal" or self.policy_type == "Laplace":
-            self.value_optim.zero_grad()
-            value_loss.backward()
-            self.value_optim.step()
-        else:
-            value_loss = torch.tensor(0.)
-
-        self.policy_optim.zero_grad()
-        policy_loss.backward()
+            if self.policy_type == "Gaussian" or self.policy_type == "Exponential" or self.policy_type == "LogNormal" or self.policy_type == "Laplace":
+                self.value_optim.zero_grad()
+                value_loss.backward()
+                self.value_optim.step()
+            else:
+                value_loss = torch.tensor(0.)
+            self.policy_optim.zero_grad()
+            policy_loss.backward()
         if self.policy_type == 'Exponential' or self.policy_type == "LogNormal" or self.policy_type == "Laplace" or self.policy_type == 'Flow':
             torch.nn.utils.clip_grad_norm_(self.policy.parameters(),self.clip)
         self.policy_optim.step()
 
+        # Clip weights of policy
+        for p in self.policy.parameters():
+            p.data.clamp_(-self.clip_value, self.clip_value)
 
         """
         We update the target weights to match the current value function weights periodically
