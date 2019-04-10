@@ -163,6 +163,8 @@ def main_plot(list_of_data, smoothing_window=10,
     ax.legend(loc='lower right', prop={'size' : 26})
     ax.set_xlabel(x_label,**axis_font)
     ax.set_ylabel(y_label, **axis_font)
+    fig.subplots_adjust(bottom=0.2)
+    fig.subplots_adjust(left=0.2)
     ax.set_title(title, **axis_font)
 
     fig.savefig('{}.png'.format(file_name))
