@@ -85,6 +85,8 @@ def getData():
 
     datas = []
 
+    data_temp = []
+    truncate_value = np.inf
     for _, line in enumerate(data_source):
         data_stream = []
         for idx,val in enumerate(line):
@@ -96,12 +98,31 @@ def getData():
             RawData = comet_api.get("%s/%s/%s" %(comet_username, comet_project, val))
             #import ipdb; ipdb.set_trace()
             data_stream.append([x[1] for x in RawData.metrics_raw[metric]])
-        # Now stack the data_Stream and append it to datas.
-        datas.append(np.stack(data_stream,1))
+
+        lengths = []
+        for data in data_stream:
+            lengths.append( len(data) )
+
+        smallest = min(lengths)
+        truncate_value = min(truncate_value, smallest)
+        for i, data in enumerate(data_stream):
+            data_stream[i] = data[:smallest]
+
+            # Now stack the data_Stream and append it to datas.
+        data_temp.append(np.stack(data_stream,1))
+
+
+    #truncated_data = []
+    for idx, data in enumerate(data_temp):
+        data_temp[idx] = data_temp[idx][:truncate_value]
+
+    for data in data_temp:
+        datas.append(data)
 
     if title=='' or xlabel=='' or ylabel=='':
         # Handle Defaults
         print("Error in reading CSV file. Ensure filename, x and y labels are present")
+    #import ipdb; ipdb.set_trace()
     return datas, labels, title, xlabel, ylabel
 
 
@@ -113,7 +134,10 @@ def main_plot(list_of_data, smoothing_window=10,
 
     fig = plt.figure(figsize=(12, 8))
     ax = plt.subplot()
-    for label in (ax.get_xticklabels() + ax.get_yticklabels()):
+    for label in (ax.get_xticklabels()):
+        label.set_fontname('Arial')
+        label.set_fontsize(28)
+    for label in (ax.get_yticklabels()):
         label.set_fontname('Arial')
         label.set_fontsize(28)
     plt.ticklabel_format(style='sci', axis='x', scilimits=(0,0))
@@ -122,6 +146,7 @@ def main_plot(list_of_data, smoothing_window=10,
 
     # get a list of colors here.
     colors = sns.color_palette('colorblind', n_colors=len(list_of_data))
+    #colors = sns.color_palette('cubehelix', n_colors=len(list_of_data))
     rewards_smoothed = []
 
     for data, label, color in zip(list_of_data, labels, colors):
