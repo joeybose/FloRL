@@ -13,6 +13,12 @@ LOG_SIG_MAX = 2
 LOG_SIG_MIN = -20
 epsilon = 1e-6
 
+def isnan(x):
+    return x != x
+
+def hasnan(tensor):
+    return isnan(tensor).any()
+
 def get_mask(in_features, out_features, in_flow_features, mask_type=None):
     """
     mask_type: input | None | output
@@ -245,9 +251,13 @@ class BatchNormFlow(nn.Module):
                 mean = self.running_mean
                 var = self.running_var
 
-            x_hat = (inputs - mean) / var.sqrt()
+            x_hat = (inputs - mean) / (var.sqrt() + epsilon)
+            # self.log_gamma.data = torch.clamp(self.log_gamma.data,min=-0.1, max=0.1)
+            if hasnan(self.log_gamma) or hasnan(x_hat) or hasnan(self.beta):
+                ipdb.set_trace()
+            # print("Log Gamma max %f, min %f" %(self.log_gamma.max(),self.log_gamma.min()))
             y = torch.exp(self.log_gamma) * x_hat + self.beta
-            return y, (self.log_gamma - 0.5 * torch.log(var)).sum(
+            return y, (self.log_gamma - 0.5 * torch.log(var+epsilon)).sum(
                 -1, keepdim=True)
         else:
             if self.training:
@@ -259,9 +269,9 @@ class BatchNormFlow(nn.Module):
 
             x_hat = (inputs - self.beta) / torch.exp(self.log_gamma)
 
-            y = x_hat * var.sqrt() + mean
+            y = x_hat * var.sqrt() + mean +epsilon
 
-            return y, (-self.log_gamma + 0.5 * torch.log(var)).sum(
+            return y, (-self.log_gamma + 0.5 * torch.log(var+epsilon)).sum(
                 -1, keepdim=True)
 
 
@@ -469,7 +479,7 @@ class FlowSequential(nn.Sequential):
     """
 
     def forward(self, inputs, cond_inputs=None, mode='direct', logdets=None,
-                return_prob=False, gaussian=False):
+                return_prob=False, use_gaussian=False, gaussian=False,eval_mode=False):
         """ Performs a forward or backward pass for flow modules.
         Args:
             inputs: a tuple of inputs and logdets
@@ -478,12 +488,13 @@ class FlowSequential(nn.Sequential):
         u = inputs
         state_enc = list(self._modules.values())[0]
         if gaussian:
-            inputs, log_probs = state_enc(inputs)[0]
+            inputs_prior, log_probs = state_enc(inputs,eval_mode=eval_mode)
         else:
-            inputs = state_enc(inputs)[0]
+            inputs_prior = state_enc(inputs)[0]
             log_probs = (-0.5 * u.pow(2) - 0.5 * math.log(2 * math.pi)).sum(
                 -1, keepdim=True)
         self.num_inputs = inputs.size(-1)
+        inputs = inputs_prior
 
         if logdets is None:
             logdets = torch.zeros(inputs.size(0), 1, device=inputs.device)
@@ -499,18 +510,25 @@ class FlowSequential(nn.Sequential):
                 if module != state_enc:
                     inputs, logdet = module(inputs, cond_inputs, mode)
                     logdets += logdet
+
+        if use_gaussian:
+            inputs = inputs_prior
+
         if not return_prob:
             return inputs, logdets
 
         # Enforcing Action Bound
         normalized_action = torch.tanh(inputs)
-        # normalized_action = inputs #torch.tanh(inputs)
         if mode == 'direct':
             log_prob_final =(log_probs - logdets).sum(-1, keepdim=True)
-            log_prob_final -= torch.log(1 - u.pow(2) + epsilon).sum(-1,keepdim=True)
+            log_prob_final -= torch.log(1 - normalized_action.pow(2) + epsilon).sum(-1,keepdim=True)
         else:
             log_prob_final =(log_probs + logdets).sum(-1, keepdim=True)
-            # log_prob_final += torch.log(1 - u.pow(2) + epsilon).sum(-1,keepdim=True)
+            log_prob_final += torch.log(1 - normalized_action.pow(2) + epsilon).sum(-1,keepdim=True)
+
+        if hasnan(log_prob_final):
+            ipdb.set_trace()
+
         return normalized_action, log_prob_final, inputs, 0 ,0
 
     def log_probs(self, inputs, cond_inputs = None):

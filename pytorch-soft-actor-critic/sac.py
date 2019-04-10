@@ -29,6 +29,8 @@ class SAC(object):
         self.clip = args.clip
         self.N = 10
         self.clip_value = args.clip_value
+        self.mode = args.mode
+        self.use_gaussian = args.use_gaussian
 
         self.policy_type = args.policy
         self.target_update_interval = args.target_update_interval
@@ -149,7 +151,7 @@ class SAC(object):
             if len(state.size()) > 2:
                 state = state.view(-1,self.num_inputs)
             if self.flow_model == 'maf-2':
-                action, _ = self.policy(state,mode='direct')
+                action, _ = self.policy(state,mode=self.mode,eval_mode=False,use_gaussian=self.use_gaussian)
             else:
                 action, _, _, _, _ = self.policy(state)
         else:
@@ -161,7 +163,7 @@ class SAC(object):
             elif self.policy_type == 'Flow' and self.flow_model =='maf-2':
                 # mean_action = 0
                 # for i in range(0,self.N):
-                _, action = self.policy(state,mode='direct')
+                action, _ = self.policy(state,mode=self.mode,eval_mode=True,use_gaussian=self.use_gaussian)
                     # mean_action += action
                 # action = mean_action / self.N
             else:
@@ -169,6 +171,7 @@ class SAC(object):
             if self.policy_type == "Gaussian" or self.policy_type == "Exponential" or self.policy_type == "LogNormal" or self.policy_type == "Laplace":
                 action = torch.tanh(action)
             elif self.policy_type == "Flow":
+                # action = torch.tanh(action)
                 action = torch.tanh(action)
             else:
                 pass
@@ -192,7 +195,8 @@ class SAC(object):
             if self.policy_type == 'Flow' and self.flow_model =='maf':
                 new_action, log_prob, _, mean, log_std = self.policy.inverse(state_batch)
             if self.policy_type == 'Flow' and self.flow_model =='maf-2':
-                new_action, log_prob, _, mean, log_std = self.policy(state_batch,mode='direct',return_prob=True)
+                new_action, log_prob, _, mean, log_std = self.policy(state_batch,\
+                            mode=self.mode,return_prob=True,use_gaussian=self.use_gaussian)
             elif self.policy_type == 'Flow' and self.flow_model =='planar':
                 new_action, log_prob, _, mean, log_std = self.policy(state_batch)
                 if self.mean_entropy:
@@ -288,14 +292,17 @@ class SAC(object):
                 value_loss = torch.tensor(0.)
             self.policy_optim.zero_grad()
             # Clip weights of policy
+            if policy_loss != policy_loss:
+                ipdb.set_trace()
             policy_loss.backward()
         if self.policy_type == 'Exponential' or self.policy_type == "LogNormal" or self.policy_type == "Laplace" or self.policy_type == 'Flow':
             torch.nn.utils.clip_grad_norm_(self.policy.parameters(),self.clip)
         self.policy_optim.step()
 
-        # # Clip weights of policy
-        for p in self.policy.parameters():
-            p.data.clamp_(-10*self.clip_value, 10*self.clip_value)
+        # Clip weights of policy
+        # for p in self.policy.parameters():
+            # # print("0 Norm: %f L1 norm: %f L2 Norm: %f" %(norm_0,norm_1,norm_2))
+            # # p.data.clamp_(-10*self.clip_value, 10*self.clip_value)
             # p.data.clamp_(min=LOG_SIG_MIN, max=LOG_SIG_MAX)
 
         """

@@ -181,6 +181,8 @@ if __name__ == '__main__':
     parser.add_argument('--num_state_out', type=int, default=16, help='Output dim')
     parser.add_argument('--activation_fn', type=str, default='relu',\
                         help='What activation function to use in the MADEs.')
+    parser.add_argument('--mode', type=str, default='direct',\
+                        help='Direct or Inverse mode to use in the MADEs.')
     parser.add_argument('--input_order', type=str, default='sequential',\
                         help='What input order to use (sequential | random).')
     parser.add_argument('--conditional', default=False, action='store_true',\
@@ -189,6 +191,7 @@ if __name__ == '__main__':
     parser.add_argument('--mean_entropy', action='store_true', help='Use Mean Entropy instead of per sample entropy')
     parser.add_argument('--flow_model', default='maf', help='Which model to use: made, maf.')
     parser.add_argument('--gaussian_encoder', action='store_true', help='Use a Gaussian Encoder for States')
+    parser.add_argument('--use_gaussian', action='store_true', help='Use a Gaussian Mean but Flow Entropy')
 
     args = parser.parse_args()
     args.cond_label_size = None

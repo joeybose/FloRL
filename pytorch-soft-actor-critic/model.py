@@ -86,12 +86,14 @@ class GaussianEncoder(nn.Module):
         log_std = torch.clamp(log_std, min=LOG_SIG_MIN, max=LOG_SIG_MAX)
         return mean, log_std
 
-    def forward(self, state):
+    def forward(self, state, eval_mode=False):
         mean, log_std = self.encode(state)
         std = log_std.exp()
         normal = Normal(mean, std)
         action = normal.rsample()  # for reparameterization trick (mean + std * N(0,1))
         log_prob = normal.log_prob(action)
+        if eval_mode:
+            return mean, log_prob
         return action, log_prob
 
 class GaussianPolicy(nn.Module):
