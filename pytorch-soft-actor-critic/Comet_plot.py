@@ -1,6 +1,7 @@
 from comet_ml import API
 import comet_ml
 import numpy as np
+import ipdb
 
 import csv
 import pandas as pd
@@ -13,12 +14,11 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import seaborn as sns
+# plt.rcParams['text.usetex'] = False
 sns.set_context('paper', font_scale=1.3)
 sns.set_style('whitegrid')
 sns.set_palette('colorblind')
 plt.rcParams['text.usetex'] = True
-
-
 
 def getData():
     filename = "plot_source.xls"
@@ -96,7 +96,6 @@ def getData():
             if val == '':
                 continue
             RawData = comet_api.get("%s/%s/%s" %(comet_username, comet_project, val))
-            #import ipdb; ipdb.set_trace()
             data_stream.append([x[1] for x in RawData.metrics_raw[metric]])
 
         lengths = []
@@ -105,12 +104,20 @@ def getData():
 
         smallest = min(lengths)
         truncate_value = min(truncate_value, smallest)
-        for i, data in enumerate(data_stream):
-            data_stream[i] = data[:smallest]
+        # for i, data in enumerate(data_stream):
+            # data_stream[i] = data[:smallest]
 
             # Now stack the data_Stream and append it to datas.
-        data_temp.append(np.stack(data_stream,1))
+        # data_temp.append(np.stack(data_stream,1))
+        data_temp.append(data_stream)
+    new_data_temp = []
+    # ipdb.set_trace()
+    for data_mat in data_temp:
+        data_mat_list = [data[:truncate_value] for data in data_mat]
+        data_mat = np.transpose(np.stack(data_mat_list,1))
+        new_data_temp.append(data_mat)
 
+    data_temp = np.concatenate(new_data_temp,0)
 
     #truncated_data = []
     for idx, data in enumerate(data_temp):
