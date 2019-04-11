@@ -117,7 +117,7 @@ def getData():
         data_mat = np.transpose(np.stack(data_mat_list,1))
         new_data_temp.append(data_mat)
 
-    data_temp = np.concatenate(new_data_temp,0)
+    data_temp = np.transpose(np.concatenate(new_data_temp,0))
 
     #truncated_data = []
     for idx, data in enumerate(data_temp):
