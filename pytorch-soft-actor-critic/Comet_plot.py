@@ -1,6 +1,7 @@
 from comet_ml import API
 import comet_ml
 import numpy as np
+import ipdb
 
 import csv
 import pandas as pd
@@ -13,12 +14,11 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import seaborn as sns
+# plt.rcParams['text.usetex'] = False
 sns.set_context('paper', font_scale=1.3)
 sns.set_style('whitegrid')
 sns.set_palette('colorblind')
 plt.rcParams['text.usetex'] = True
-
-
 
 def getData():
     filename = "plot_source.xls"
@@ -85,6 +85,8 @@ def getData():
 
     datas = []
 
+    data_temp = []
+    truncate_value = np.inf
     for _, line in enumerate(data_source):
         data_stream = []
         for idx,val in enumerate(line):
@@ -94,14 +96,40 @@ def getData():
             if val == '':
                 continue
             RawData = comet_api.get("%s/%s/%s" %(comet_username, comet_project, val))
-            #import ipdb; ipdb.set_trace()
             data_stream.append([x[1] for x in RawData.metrics_raw[metric]])
-        # Now stack the data_Stream and append it to datas.
-        datas.append(np.stack(data_stream,1))
+
+        lengths = []
+        for data in data_stream:
+            lengths.append( len(data) )
+
+        smallest = min(lengths)
+        truncate_value = min(truncate_value, smallest)
+        # for i, data in enumerate(data_stream):
+            # data_stream[i] = data[:smallest]
+
+            # Now stack the data_Stream and append it to datas.
+        # data_temp.append(np.stack(data_stream,1))
+        data_temp.append(data_stream)
+    new_data_temp = []
+    # ipdb.set_trace()
+    for data_mat in data_temp:
+        data_mat_list = [data[:truncate_value] for data in data_mat]
+        data_mat = np.transpose(np.stack(data_mat_list,1))
+        new_data_temp.append(data_mat)
+
+    data_temp = np.transpose(np.concatenate(new_data_temp,0))
+
+    #truncated_data = []
+    for idx, data in enumerate(data_temp):
+        data_temp[idx] = data_temp[idx][:truncate_value]
+
+    for data in data_temp:
+        datas.append(data)
 
     if title=='' or xlabel=='' or ylabel=='':
         # Handle Defaults
         print("Error in reading CSV file. Ensure filename, x and y labels are present")
+    #import ipdb; ipdb.set_trace()
     return datas, labels, title, xlabel, ylabel
 
 
@@ -113,7 +141,10 @@ def main_plot(list_of_data, smoothing_window=10,
 
     fig = plt.figure(figsize=(12, 8))
     ax = plt.subplot()
-    for label in (ax.get_xticklabels() + ax.get_yticklabels()):
+    for label in (ax.get_xticklabels()):
+        label.set_fontname('Arial')
+        label.set_fontsize(28)
+    for label in (ax.get_yticklabels()):
         label.set_fontname('Arial')
         label.set_fontsize(28)
     plt.ticklabel_format(style='sci', axis='x', scilimits=(0,0))
@@ -122,6 +153,7 @@ def main_plot(list_of_data, smoothing_window=10,
 
     # get a list of colors here.
     colors = sns.color_palette('colorblind', n_colors=len(list_of_data))
+    #colors = sns.color_palette('cubehelix', n_colors=len(list_of_data))
     rewards_smoothed = []
 
     for data, label, color in zip(list_of_data, labels, colors):
@@ -138,6 +170,8 @@ def main_plot(list_of_data, smoothing_window=10,
     ax.legend(loc='lower right', prop={'size' : 26})
     ax.set_xlabel(x_label,**axis_font)
     ax.set_ylabel(y_label, **axis_font)
+    fig.subplots_adjust(bottom=0.2)
+    fig.subplots_adjust(left=0.2)
     ax.set_title(title, **axis_font)
 
     fig.savefig('{}.png'.format(file_name))
