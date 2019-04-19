@@ -29,6 +29,7 @@ class SAC(object):
                 args.hidden_size).to(device)
         self.critic_optim = Adam(self.critic.parameters(), lr=args.lr)
         self.alpha = args.alpha
+        self.tanh = args.tanh
 
         if self.policy_type == "Gaussian" or self.policy_type == "Exponential" or self.policy_type == "LogNormal" or self.policy_type == "Laplace":
             # Target Entropy = −dim(A) (e.g. , -6 for HalfCheetah-v2) as given in the paper
@@ -128,12 +129,13 @@ class SAC(object):
             else:
                 _, _, _, action, _ = self.policy.inverse(state)
             if self.policy_type == "Gaussian" or self.policy_type == "Exponential" or self.policy_type == "LogNormal" or self.policy_type == "Laplace":
-                action = torch.tanh(action)
+                if self.tanh:
+                    action = torch.tanh(action)
             elif self.policy_type == "Flow":
-                action = torch.tanh(action)
+                if self.tanh:
+                    action = torch.tanh(action)
             else:
                 pass
-        #action = torch.tanh(action)
         action = action.detach().cpu().numpy()
         return action[0]
 

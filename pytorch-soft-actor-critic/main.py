@@ -184,6 +184,7 @@ if __name__ == '__main__':
                         help='Whether to use a conditional model.')
     parser.add_argument('--no_batch_norm', action='store_true')
     parser.add_argument('--flow_model', default='maf', help='Which model to use: made, maf.')
+    parser.add_argument('--tanh', type=bool, default=True, help='Apply tanh to actions')
 
     args = parser.parse_args()
     args.cond_label_size = None
