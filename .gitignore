@@ -5,4 +5,5 @@
 *.pt
 *.swp
 __pycache__/**
+.idea/**
 pytorch-soft-actor-critic/__pycache__/**

@@ -20,8 +20,8 @@ sns.set_style('whitegrid')
 sns.set_palette('colorblind')
 plt.rcParams['text.usetex'] = True
 
-def getData():
-    filename = "plot_source.xls"
+def getData(args):
+    filename = args.filename
     rows = []
     with open(filename, 'r') as csvfile:
         # Creating a csv reader object
@@ -183,10 +183,11 @@ def main_plot(list_of_data, smoothing_window=10,
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--smoothing_window', default=10, type=int)
+    parser.add_argument('--filename', default="plot_source.xls")
     args = parser.parse_args()
     print("Fetching the data")
 
-    datas, labels, title, xlabel, ylabel = getData()
+    datas, labels, title, xlabel, ylabel = getData(args)
 
     main_plot(datas,smoothing_window=args.smoothing_window,file_name=title,labels=labels,title=title,x_label=xlabel,y_label=ylabel)
 
