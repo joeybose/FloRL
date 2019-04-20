@@ -7,5 +7,6 @@
 *.png
 *.eps
 __pycache__/**
+.idea/**
 pytorch-soft-actor-critic/__pycache__/**
 pytorch-soft-actor-critic/ddpg_gridworld/__pycache__/**

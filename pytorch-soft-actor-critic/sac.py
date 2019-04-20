@@ -29,6 +29,7 @@ class SAC(object):
                 args.hidden_size).to(device)
         self.critic_optim = Adam(self.critic.parameters(), lr=args.lr)
         self.alpha = args.alpha
+        self.tanh = args.tanh
         self.reparam = args.reparam
 
         if self.policy_type == "Gaussian" or self.policy_type == "Exponential" or self.policy_type == "LogNormal" or self.policy_type == "Laplace":
@@ -129,12 +130,13 @@ class SAC(object):
             else:
                 _, _, _, action, _ = self.policy.inverse(state)
             if self.policy_type == "Gaussian" or self.policy_type == "Exponential" or self.policy_type == "LogNormal" or self.policy_type == "Laplace":
-                action = torch.tanh(action)
+                if self.tanh:
+                    action = torch.tanh(action)
             elif self.policy_type == "Flow":
-                action = torch.tanh(action)
+                if self.tanh:
+                    action = torch.tanh(action)
             else:
                 pass
-        #action = torch.tanh(action)
         action = action.detach().cpu().numpy()
         return action[0]
 
