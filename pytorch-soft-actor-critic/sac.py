@@ -29,6 +29,7 @@ class SAC(object):
                 args.hidden_size).to(device)
         self.critic_optim = Adam(self.critic.parameters(), lr=args.lr)
         self.alpha = args.alpha
+        self.reparam = args.reparam
 
         if self.policy_type == "Gaussian" or self.policy_type == "Exponential" or self.policy_type == "LogNormal" or self.policy_type == "Laplace":
             # Target Entropy = −dim(A) (e.g. , -6 for HalfCheetah-v2) as given in the paper
@@ -212,14 +213,19 @@ class SAC(object):
         else:
             pass
 
-        """
-        Reparameterization trick is used to get a low variance estimator
-        f(εt;st) = action sampled from the policy
-        εt is an input noise vector, sampled from some fixed distribution
-        Jπ = 𝔼st∼D,εt∼N[α * logπ(f(εt;st)|st) − Q(st,f(εt;st))]
-        ∇Jπ = ∇log π + ([∇at (α * logπ(at|st)) − ∇at Q(st,at)])∇f(εt;st)
-        """
-        policy_loss = ((self.alpha * log_prob) - expected_new_q_value).mean()
+        # whether to use reparameterization trick or not
+        if self.reparam == True:
+            """
+            Reparameterization trick is used to get a low variance estimator
+            f(εt;st) = action sampled from the policy
+            εt is an input noise vector, sampled from some fixed distribution
+            Jπ = 𝔼st∼D,εt∼N[α * logπ(f(εt;st)|st) − Q(st,f(εt;st))]
+            ∇Jπ = ∇log π + ([∇at (α * logπ(at|st)) − ∇at Q(st,at)])∇f(εt;st)
+            """
+            policy_loss = ((self.alpha * log_prob) - expected_new_q_values).mean()
+        else:
+            log_prob_target = expected_new_q_value - expected_value
+            policy_loss = (log_prob * ((self.alpha * log_prob) - log_prob_target).detach() ).mean()
 
         # Regularization Loss
         if self.policy_type == "Gaussian" or self.policy_type == "Exponential" or self.policy_type == "LogNormal" or self.policy_type == "Laplace":

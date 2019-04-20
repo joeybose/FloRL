@@ -133,7 +133,7 @@ class REINFORCE:
 
             # loop over this a couple of times
             for _ in range(self.train_v_iters):
-                # calculate loss of value function
+                # calculate loss of value function using mean squared error
                 value_estimates = []
                 for state in states:
                     state = torch.from_numpy(state).float().unsqueeze(0) # just to make it a Tensor obj

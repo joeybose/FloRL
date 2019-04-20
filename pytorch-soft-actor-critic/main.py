@@ -184,6 +184,8 @@ if __name__ == '__main__':
                         help='Whether to use a conditional model.')
     parser.add_argument('--no_batch_norm', action='store_true')
     parser.add_argument('--flow_model', default='maf', help='Which model to use: made, maf.')
+    parser.add_argument('--reparam', default = True, help = 'use reparameterization trick \
+                                                              or log trick to compute gradient')
 
     args = parser.parse_args()
     args.cond_label_size = None
