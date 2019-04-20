@@ -92,7 +92,7 @@ class GaussianPolicy(nn.Module):
         mean, log_std = self.encode(state)
         std = log_std.exp()
         normal = Normal(mean, std)
-        x_t = normal.rsample()  # for reparameterization trick (mean + std * N(0,1))
+        x_t = normal.sample()  # for reparameterization trick (mean + std * N(0,1))
         if self.tanh:
             action = torch.tanh(x_t)
         else:
