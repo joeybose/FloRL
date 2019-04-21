@@ -86,12 +86,13 @@ def main(args):
 
     if args.make_cont_grid:
         #The following lines are for visual purposes
-        traj=[]
-        imp_states=[]
+        traj = []
+        imp_states = []
 
     for i_episode in itertools.count():
         state = env.reset()
-        traj.append(state)
+        if args.make_cont_grid:
+            traj.append(state)
 
         episode_reward = 0
         while True:
@@ -102,9 +103,10 @@ def main(args):
             time.sleep(.002)
             next_state, reward, done, _ = env.step(action)  # Step
             #Visual
-            traj.append(next_state)
-            if total_numsteps % 100 == 0 and total_numsteps != 0:
-                imp_states.append(next_state)
+            if args.make_cont_grid:
+                traj.append(next_state)
+                if total_numsteps % 100 == 0 and total_numsteps != 0:
+                    imp_states.append(next_state)
             mask = not done  # 1 for not done and 0 for done
             memory.push(state, action, reward, next_state, mask)  # Append transition to memory
             if len(memory) > args.batch_size:
