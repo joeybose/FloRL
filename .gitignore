@@ -6,4 +6,8 @@
 *.swp
 __pycache__/**
 .idea/**
+install/**
+*.pdf
+*.png
+*.xls
 pytorch-soft-actor-critic/__pycache__/**

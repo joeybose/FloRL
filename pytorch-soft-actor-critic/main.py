@@ -160,7 +160,7 @@ def main(args):
                     break
 
             if args.comet:
-                args.experiment.log_metric("Test Reward",episode_reward,step=i_episode)
+                args.experiment.log_metric("Test Reward", episode_reward, step=i_episode)
 
             test_rewards.append(episode_reward)
             print("----------------------------------------")
@@ -170,7 +170,7 @@ def main(args):
         #Visual
         img = env.vis_trajectory(np.asarray(traj), args.namestr, np.asarray(imp_states))
         if args.comet:
-            args.experiment.log_image("%s.png"%(args.namestr), file_name= None, overwrite = False)
+            args.experiment.log_image("%s.png"%(args.namestr), file_name=None, overwrite=False)
 
     env.close()
 

@@ -174,8 +174,8 @@ def main_plot(list_of_data, smoothing_window=10,
     fig.subplots_adjust(left=0.2)
     ax.set_title(title, **axis_font)
 
-    fig.savefig('{}.png'.format(file_name))
-    fig.savefig('{}.pdf'.format(file_name))
+    fig.savefig('../install/{}.png'.format(file_name))
+    fig.savefig('../install/{}.pdf'.format(file_name))
 
     return fig
 
