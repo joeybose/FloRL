@@ -19,31 +19,38 @@ def main(args):
     # Environment
     if args.make_cont_grid:
         if args.smol:
-            env = GridWorld(max_episode_len = 500,num_rooms=1,action_limit_max = 1.0, silent_mode = args.silent, \
-                            start_position = (8.0, 8.0),goal_position = (22.0, 22.0),goal_reward = +100.0, \
-                            dense_goals = [(13.0,8.0),(18.0,11.0),(20.0,15.0),(22.0, 19.0),], dense_reward = +5,\
-                            grid_len = 30)
+            dense_goals = []
+            if args.dense_goals:
+                dense_goals = [(13.0, 8.0), (18.0, 11.0), (20.0, 15.0), (22.0, 19.0)]
+            env = GridWorld(max_episode_len=500, num_rooms=1, action_limit_max=1.0, silent_mode=args.silent,
+                            start_position=(8.0, 8.0), goal_position=(22.0, 22.0), goal_reward=+100.0,
+                            dense_goals=dense_goals, dense_reward=+5,
+                            grid_len=30)
             env_name = "SmallGridWorld"
         elif args.tiny:
-            env = GridWorld(max_episode_len = 500,num_rooms=0,action_limit_max = 1.0, silent_mode = args.silent, \
-                            start_position = (5.0, 5.0),goal_position = (15.0, 15.0),goal_reward = +100.0, \
-                            dense_goals = [], dense_reward = +0,\
-                            grid_len = 20)
+            env = GridWorld(max_episode_len=500, num_rooms=0, action_limit_max=1.0, silent_mode=args.silent,
+                            start_position=(5.0, 5.0), goal_position=(15.0, 15.0), goal_reward=+100.0,
+                            dense_goals=[], dense_reward=+0,
+                            grid_len=20)
             env_name = "TinyGridWorld"
         elif args.twotiny:
-            env = GridWorld(max_episode_len = 500,num_rooms=1,action_limit_max = 1.0, silent_mode = args.silent, \
-                            start_position = (5.0, 5.0),goal_position = (15.0, 15.0),goal_reward = +100.0, \
-                            dense_goals = [], dense_reward = +0,\
-                            grid_len = 20, door_breadth = 3)
+            env = GridWorld(max_episode_len=500, num_rooms=1, action_limit_max=1.0, silent_mode=args.silent,
+                            start_position=(5.0, 5.0), goal_position=(15.0, 15.0), goal_reward=+100.0,
+                            dense_goals=[], dense_reward=+0,
+                            grid_len=20, door_breadth=3)
             env_name = "TwoTinyGridWorld"
         elif args.threetiny:
-            env = GridWorld(max_episode_len = 500,num_rooms=0,action_limit_max = 1.0, silent_mode = args.silent, \
-                            start_position = (8.0, 8.0),goal_position = (22.0, 22.0),goal_reward = +100.0, \
-                            dense_goals = [], dense_reward = +0,\
-                            grid_len = 30)
+            env = GridWorld(max_episode_len=500, num_rooms=0, action_limit_max=1.0, silent_mode=args.silent,
+                            start_position=(8.0, 8.0), goal_position=(22.0, 22.0), goal_reward=+100.0,
+                            dense_goals=[], dense_reward=+0,
+                            grid_len=30)
             env_name = "ThreeGridWorld"
         else:
-            env = GridWorld(max_episode_len = 1000, num_rooms=1,action_limit_max = 1.0, silent_mode = args.silent)
+            dense_goals = []
+            if args.dense_goals:
+                dense_goals = [(13.0, 8.0), (18.0, 11.0), (20.0, 15.0), (22.0, 19.0)]
+            env = GridWorld(max_episode_len=1000, num_rooms=1, action_limit_max=1.0, silent_mode=args.silent,
+                            dense_goals=dense_goals, dense_reward=+5)
             env_name = "VeryLargeGridWorld"
     else:
         env = NormalizedActions(gym.make(args.env_name))
@@ -235,13 +242,17 @@ if __name__ == '__main__':
     parser.add_argument('--flow_model', default='maf', help='Which model to use: made, maf.')
     parser.add_argument('--tanh_off', action='store_true', default=False, help='Apply tanh to actions')
 
-    ### for different gridworld environments
-    parser.add_argument('--make_cont_grid', default=False, action='store_true',help='Make GridWorld')
-    parser.add_argument("--smol",action="store_true",default=False,help='Change to a smaller sized gridworld')
-    parser.add_argument("--tiny",action="store_true",default=False,help='Change to the smallest sized gridworld')
-    parser.add_argument("--twotiny",action="store_true",default=False,help='Change to 2x the smallest sized gridworld')
-    parser.add_argument("--threetiny",action="store_true",default=False,help='Change to 3x the smallest sized gridworld')
-    parser.add_argument("--silent",action="store_true",default=False,help='Display graphical output. Set to true when running on a server.')
+    # For different gridworld environments
+    parser.add_argument('--make_cont_grid', default=False, action='store_true', help='Make GridWorld')
+    parser.add_argument('--dense_goals', default=False, action='store_true', help='Create sub-goals')
+    parser.add_argument("--smol", action="store_true", default=False, help='Change to a smaller sized gridworld')
+    parser.add_argument("--tiny", action="store_true", default=False, help='Change to the smallest sized gridworld')
+    parser.add_argument("--twotiny", action="store_true", default=False,
+                        help='Change to 2x the smallest sized gridworld')
+    parser.add_argument("--threetiny", action="store_true", default=False,
+                        help='Change to 3x the smallest sized gridworld')
+    parser.add_argument("--silent", action="store_true", default=False,
+                        help='Display graphical output. Set to true when running on a server.')
 
     args = parser.parse_args()
     args.cond_label_size = None
