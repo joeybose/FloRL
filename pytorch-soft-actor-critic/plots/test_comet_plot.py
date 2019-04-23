@@ -2,14 +2,12 @@ import argparse
 import csv
 import json
 import os
+from statistics import mean
 
 from comet_ml import API
-import numpy as np
 import matplotlib
-import pandas as pd
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-import pdb
 import seaborn as sns
 
 # Set plotting style
@@ -54,16 +52,19 @@ def connect_to_comet():
     return comet_api, comet_username, comet_project
 
 
-def truncate_runs(data_runs):
-    last_data_points = [run[-1] for run in data_runs]
+def truncate_exp(data_experiments):
+    last_data_points = [run[-1] for data_run in data_experiments for run in data_run]
     run_end_times = [timestep for timestep, value in last_data_points]
     earliest_end_time = min(run_end_times)
 
-    clean_data_runs = []
-    for run in data_runs:
-        clean_data_runs.append([(x, y) for x, y in run if x <= earliest_end_time])
+    clean_data_experiments = []
+    for exp in data_experiments:
+        clean_data_runs = []
+        for run in exp:
+            clean_data_runs.append({x: y for x, y in run if x <= earliest_end_time})
+        clean_data_experiments.append(clean_data_runs)
 
-    return clean_data_runs
+    return clean_data_experiments
 
 
 def get_data(title, x_label, y_label, metric, data):
@@ -84,10 +85,10 @@ def get_data(title, x_label, y_label, metric, data):
                 data_points = raw_data.metrics_raw[metric]
                 data_runs.append(data_points)
 
-            clean_data_runs = truncate_runs(data_runs)
-            data_experiments.append(clean_data_runs)
+            data_experiments.append(data_runs)
 
-    return data_experiments
+    clean_data_experiments = truncate_exp(data_experiments)
+    return clean_data_experiments
 
 
 def plot(**kwargs):
@@ -107,22 +108,23 @@ def plot(**kwargs):
     axis_font = {'fontname': 'Arial', 'size': '32'}
     colors = sns.color_palette('colorblind', n_colors=len(data))
 
-    rewards = []
+    # Plot data
     for runs, label, color in zip(data, labels.get('experiments'), colors):
-        plt.plot(runs[:, 0], runs[:, 1], color=color, linewidth=1.5, label=label)
-        print('hello')
+        unique_x_values = set()
+        for run in runs:
+            for key in run.keys():
+                unique_x_values.add(key)
+        x_values = sorted(unique_x_values)
 
-        # data_experiments = np.array(data)
-        # episodes = np.arange(data_experiments.shape[0])
-        # cleaned_data = pd.DataFrame(data_experiments)
-        # rewards.append(cleaned_data)
-        #
-        # data_experiments_mean = cleaned_data.mean(axis=1)
-        # data_experiments_std = cleaned_data.std(axis=1)
-        # ax.fill_between(episodes, data_experiments_mean + data_experiments_std, data_experiments_mean - data_experiments_std,
-        #                 alpha=0.3, edgecolor=color, facecolor=color)
-        # plt.plot(episodes, data_experiments_mean, color=color, linewidth=1.5, label=label)
+        # Plot mean of all runs
+        y_values_mean = []
 
+        for x in x_values:
+            y_values_mean.append(mean([run.get(x) for run in runs if run.get(x)]))
+
+        plt.plot(x_values, y_values_mean, color=color, linewidth=1.5, label=label)
+
+    # Label figure
     ax.legend(loc='lower right', prop={'size': 26})
     ax.set_xlabel(labels.get('x_label'), **axis_font)
     ax.set_ylabel(labels.get('y_label'), **axis_font)
