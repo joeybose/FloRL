@@ -48,9 +48,10 @@ def main(args):
         else:
             dense_goals = []
             if args.dense_goals:
-                dense_goals = [(13.0, 8.0), (18.0, 11.0), (20.0, 15.0), (22.0, 19.0)]
+                dense_goals = [(35.0, 25.0), (45.0, 25.0), (55.0, 25.0), (68.0, 33.0), (75.0, 45.0), (75.0, 55.0),
+                               (75.0, 65.0)]
             env = GridWorld(max_episode_len=1000, num_rooms=1, action_limit_max=1.0, silent_mode=args.silent,
-                            dense_goals=dense_goals, dense_reward=+5)
+                            dense_goals=dense_goals)
             env_name = "VeryLargeGridWorld"
     else:
         env = NormalizedActions(gym.make(args.env_name))
