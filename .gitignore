@@ -8,5 +8,10 @@
 *.eps
 __pycache__/**
 .idea/**
+install/**
+*.pdf
+*.png
+*.xls
+.nfs*
 pytorch-soft-actor-critic/__pycache__/**
 pytorch-soft-actor-critic/ddpg_gridworld/__pycache__/**
