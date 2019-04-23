@@ -102,7 +102,7 @@ class GaussianPolicy(nn.Module):
             # Enforcing Action Bound
             log_prob -= torch.log(1 - action.pow(2) + epsilon)
         log_prob = log_prob.sum(1, keepdim=True)
-        assert(0 <= log_prob <= 1)
+        # assert(0 <= torch.exp(log_prob) <= 1)
         return action, log_prob, x_t, mean, log_std
 
 
@@ -142,7 +142,7 @@ class ExponentialPolicy(nn.Module):
             # Enforcing Action Bound
             log_prob -= torch.log(1 - action.pow(2) + epsilon)
         log_prob = log_prob.sum(1, keepdim=True)
-        assert (0 <= log_prob <= 1)
+        # assert(0 <= torch.exp(log_prob) <= 1)
         return action, log_prob, x_t, mean, log_std
 
 
@@ -182,7 +182,7 @@ class LogNormalPolicy(nn.Module):
             # Enforcing Action Bound
             log_prob -= torch.log(1 - action.pow(2) + epsilon)
         log_prob = log_prob.sum(1, keepdim=True)
-        assert (0 <= log_prob <= 1)
+        # assert(0 <= torch.exp(log_prob) <= 1)
         return action, log_prob, x_t, mean, log_std
 
 
@@ -224,7 +224,7 @@ class LaplacePolicy(nn.Module):
             # Enforcing Action Bound
             log_prob -= torch.log(1 - action.pow(2) + epsilon)
         log_prob = log_prob.sum(1, keepdim=True)
-        assert (0 <= log_prob <= 1)
+        # assert(0 <= torch.exp(log_prob) <= 1)
         return action, log_prob, x_t, mean, log_std
 
 
