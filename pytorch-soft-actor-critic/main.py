@@ -14,6 +14,7 @@ from normalized_actions import NormalizedActions
 from replay_memory import ReplayMemory
 from continous_grids import GridWorld
 
+
 def main(args):
     # Environment
     if args.make_cont_grid:
@@ -67,7 +68,7 @@ def main(args):
         args.use_logger = False
         ipdb.set_trace()
 
-        # Check if settings file
+    # Check if settings file
     if os.path.isfile("settings.json"):
         with open('settings.json') as f:
                 data = json.load(f)
@@ -85,7 +86,7 @@ def main(args):
         args.experiment = experiment
 
     if args.make_cont_grid:
-        #The following lines are for visual purposes
+        # The following lines are for visual purposes
         traj = []
         imp_states = []
 
@@ -232,7 +233,7 @@ if __name__ == '__main__':
                         help='Whether to use a conditional model.')
     parser.add_argument('--no_batch_norm', action='store_true')
     parser.add_argument('--flow_model', default='maf', help='Which model to use: made, maf.')
-    parser.add_argument('--tanh', type=bool, default=True, help='Apply tanh to actions')
+    parser.add_argument('--tanh_off', action='store_true', default=False, help='Apply tanh to actions')
 
     ### for different gridworld environments
     parser.add_argument('--make_cont_grid', default=False, action='store_true',help='Make GridWorld')
