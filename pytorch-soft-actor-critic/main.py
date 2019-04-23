@@ -150,6 +150,7 @@ def main(args):
         if i_episode % 10 == 0 and args.eval == True:
             state = torch.Tensor([env.reset()])
             episode_reward = 0
+            ipdb.set_trace()
             while True:
                 action = agent.select_action(state, eval=True)
                 next_state, reward, done, _ = env.step(action)
@@ -232,15 +233,13 @@ if __name__ == '__main__':
                         help='Whether to use a conditional model.')
     parser.add_argument('--no_batch_norm', action='store_true')
     parser.add_argument('--flow_model', default='maf', help='Which model to use: made, maf.')
-    #pariser.add_argument('--reparam', default = True, help = 'use reparameterization trick \
-    #                                                          or log trick to compute gradient')
-
+    # flags for using reparameterization trick or not
     parser.add_argument('--reparam',dest='reparam',action='store_true')
     parser.add_argument('--no-reparam',dest='reparam',action='store_false')
-
+    # flags for using a tanh activation or not
     parser.add_argument('--tanh', dest='tanh', action='store_true')
     parser.add_argument('--no-tanh', dest='tanh', action='store_false')
-    ### for different gridworld environments
+    # flags for different gridworld environments
     parser.add_argument('--make_cont_grid', default=False, action='store_true',help='Make GridWorld')
     parser.add_argument("--smol",action="store_true",default=False,help='Change to a smaller sized gridworld')
     parser.add_argument("--tiny",action="store_true",default=False,help='Change to the smallest sized gridworld')

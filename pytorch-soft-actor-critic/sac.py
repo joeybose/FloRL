@@ -256,6 +256,9 @@ class SAC(object):
             torch.nn.utils.clip_grad_norm_(self.policy.parameters(),self.clip)
         self.policy_optim.step()
 
+        # clip weights of policy network to insure the values don't blow up
+        for p in self.policy.parameters():
+            p.data.clamp_(-10*self.clip, 10*self.clip)
 
         """
         We update the target weights to match the current value function weights periodically
