@@ -6,6 +6,8 @@ from statistics import mean
 
 from comet_ml import API
 import matplotlib
+import numpy as np
+
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -116,12 +118,20 @@ def plot(**kwargs):
                 unique_x_values.add(key)
         x_values = sorted(unique_x_values)
 
-        # Plot mean of all runs
+        # Plot mean and standard deviation of all runs
         y_values_mean = []
+        y_values_std = []
 
         for x in x_values:
             y_values_mean.append(mean([run.get(x) for run in runs if run.get(x)]))
+            y_values_std.append(np.std([run.get(x) for run in runs if run.get(x)]))
 
+        # Plot std
+        ax.fill_between(x_values, np.add(np.array(y_values_mean), np.array(y_values_std)),
+                        np.subtract(np.array(y_values_mean), np.array(y_values_std)),
+                        alpha=0.3,
+                        edgecolor=color, facecolor=color)
+        # Plot mean
         plt.plot(x_values, y_values_mean, color=color, linewidth=1.5, label=label)
 
     # Label figure
