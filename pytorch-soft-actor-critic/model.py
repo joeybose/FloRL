@@ -97,6 +97,7 @@ class GaussianPolicy(nn.Module):
             action = torch.tanh(x_t)
         else:
             action = x_t
+        # ipdb.set_trace()
         log_prob = normal.log_prob(x_t)
         # Enforcing Action Bound
         log_prob -= torch.log(1 - action.pow(2) + epsilon)
@@ -239,4 +240,49 @@ class DeterministicPolicy(nn.Module):
         noise = noise.clamp(-0.25, 0.25)
         action = mean + noise
         return action, torch.tensor(0.), torch.tensor(0.), mean, torch.tensor(0.)
+
+class GaussianEncoder(nn.Module):
+    def __init__(self, num_inputs, num_actions, hidden_dim, args):
+        super(GaussianEncoder, self).__init__()
+
+        self.linear1 = nn.Linear(num_inputs, hidden_dim)
+        self.linear2 = nn.Linear(hidden_dim, hidden_dim)
+
+        self.mean_linear = nn.Linear(hidden_dim, num_actions)
+        self.log_std_linear = nn.Linear(hidden_dim, num_actions)
+
+        self.apply(weights_init_)
+
+    def encode(self, state):
+        x = F.relu(self.linear1(state))
+        x = F.relu(self.linear2(x))
+        mean = self.mean_linear(x)
+        log_std = self.log_std_linear(x)
+        log_std = torch.clamp(log_std, min=LOG_SIG_MIN, max=LOG_SIG_MAX)
+        return mean, log_std
+
+    def forward(self, state, eval_mode=False):
+        mean, log_std = self.encode(state)
+        std = log_std.exp()
+        normal = Normal(mean, std)
+        action = normal.rsample()  # for reparameterization trick (mean + std * N(0,1))
+        log_prob = normal.log_prob(action)
+        if eval_mode:
+            return mean, log_prob
+        return action, log_prob
+
+class StateEncoder(nn.Module):
+    def __init__(self, num_inputs, num_actions, hidden_dim):
+        super(StateEncoder, self).__init__()
+        # hidden_dim = hidden_dim / 2
+        self.linear1 = nn.Linear(num_inputs, hidden_dim)
+        self.linear2 = nn.Linear(hidden_dim, hidden_dim)
+        self.linear3 = nn.Linear(hidden_dim, num_actions)
+        self.apply(weights_init_)
+
+    def forward(self, state):
+        x1 = F.relu(self.linear1(state))
+        x2 = F.relu(self.linear2(x1))
+        x3 = F.relu(self.linear3(x2))
+        return x3
 

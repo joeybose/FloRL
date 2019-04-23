@@ -4,6 +4,7 @@ import numpy as np
 import torch.nn.functional as F
 from torch.distributions import Normal
 from flow_helpers import *
+from model import GaussianEncoder, StateEncoder
 import ipdb
 
 #Reference: https://github.com/ritheshkumar95/pytorch-normalizing-flows/blob/master/modules.py
@@ -11,6 +12,8 @@ import ipdb
 LOG_SIG_MAX = 2
 LOG_SIG_MIN = -20
 epsilon = 1e-6
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 def weights_init_(m):
     classname = m.__class__.__name__
     if classname.find('Linear') != -1:
@@ -190,16 +193,34 @@ class FlowSequential(nn.Sequential):
     """ Container for layers of a normalizing flow """
     def forward(self, x, y):
         sum_log_abs_det_jacobians = 0
+        i = len(self)
         for module in self:
-            x, log_abs_det_jacobian = module(x, y)
-            sum_log_abs_det_jacobians = sum_log_abs_det_jacobians + log_abs_det_jacobian
+            if ("StateEncoder" in str(type(module))):
+                state_enc = module(x)
+                x = x - state_enc
+            # elif ("GaussianEncoder" in str(type(module))):
+                # state_enc = module(x)
+                # x -= state_enc
+            else:
+                x, log_abs_det_jacobian = module(x, y)
+                sum_log_abs_det_jacobians = sum_log_abs_det_jacobians + log_abs_det_jacobian
+            i -= 1
         return x, sum_log_abs_det_jacobians
 
-    def inverse(self, u, y):
+    def inverse(self, u, state, y):
+        i = 0
         sum_log_abs_det_jacobians = 0
         for module in reversed(self):
-            u, log_abs_det_jacobian = module.inverse(u, y)
-            sum_log_abs_det_jacobians = sum_log_abs_det_jacobians + log_abs_det_jacobian
+            if ("StateEncoder" in str(type(module))):
+                state_enc = module(state)
+                u = u + state_enc
+            # elif ("GaussianEncoder" in str(type(module))):
+                # state_enc = module(state)
+                # u += state_enc
+            else:
+                u, log_abs_det_jacobian = module.inverse(u, y)
+                sum_log_abs_det_jacobians = sum_log_abs_det_jacobians + log_abs_det_jacobian
+            i += 1
         return u, sum_log_abs_det_jacobians
 
 # --------------------
@@ -444,34 +465,70 @@ class MAFMOG(nn.Module):
 
 
 class RealNVP(nn.Module):
-    def __init__(self, n_blocks, input_size, hidden_size, n_hidden, cond_label_size=None, batch_norm=True):
+    def __init__(self, args, n_blocks, input_size, hidden_size, n_hidden, cond_label_size=None, batch_norm=True):
         super().__init__()
 
         # base distribution for calculation of log prob under the model
         self.register_buffer('base_dist_mean', torch.zeros(input_size))
         self.register_buffer('base_dist_var', torch.ones(input_size))
-
+        self.pos_jac = args.pos_jac
+        self.gaussian_encoder = args.gaussian_encoder
+        if not args.gaussian_encoder:
+            self.enc = StateEncoder(args.num_inputs,args.action_space,\
+                         args.hidden_size).to(device)
+        else:
+            self.enc = GaussianEncoder(args.num_inputs,\
+                                        args.action_space,\
+                                        args.hidden_size,args).to(device)
         # construct model
         modules = []
         mask = torch.arange(input_size).float() % 2
         for i in range(n_blocks):
+            if i == n_blocks - 1 and not self.gaussian_encoder:
+                modules.append(self.enc)
             modules += [LinearMaskedCoupling(input_size, hidden_size, n_hidden, mask, cond_label_size)]
             mask = 1 - mask
             modules += batch_norm * [BatchNorm(input_size)]
-
         self.net = FlowSequential(*modules)
 
     @property
     def base_dist(self):
         return D.Normal(self.base_dist_mean, self.base_dist_var)
 
-    def forward(self, x, y=None):
+    def forward(self, state, y=None):
+        if self.gaussian_encoder:
+            x, log_prior_prob = self.enc(state)
+        else:
+            raise NotImplementedError
         return self.net(x, y)
 
-    def inverse(self, u, y=None):
-        return self.net.inverse(u, y)
+    def inverse(self, state, y=None):
+        if not self.gaussian_encoder:
+            prior_dist = D.Normal(self.base_dist_mean, self.base_dist_var)
+            u = prior_dist.sample((len(state),))
+            log_prior_prob = prior_dist.log_prob(u)
+            x_t, sum_log_abs_det_jacobians = self.net.inverse(u, state, y)
+            log_prob_action = self.log_prob(x_t)
+            action = torch.tanh(x_t)
+        else:
+            u, log_prior_prob = self.enc(state)
+            x_t, sum_log_abs_det_jacobians = self.net.inverse(u, state, y)
+            action = torch.tanh(x_t)
+        if not self.pos_jac:
+            log_prob_action = log_prior_prob - sum_log_abs_det_jacobians
+            log_prob_tanh = torch.log(F.relu(1 - action.pow(2)) + epsilon)
+            log_prob_action = torch.sum(log_prob_action - log_prob_tanh,dim=1)
+        else:
+            log_prob_action = log_prior_prob + sum_log_abs_det_jacobians
+            log_prob_tanh = torch.log(F.relu(1 - action.pow(2)) + epsilon)
+            log_prob_action = torch.sum(log_prob_action + log_prob_tanh,dim=1)
+        return action, log_prob_action
 
     def log_prob(self, x, y=None):
         u, sum_log_abs_det_jacobians = self.forward(x, y)
+        # action = torch.tanh(x)
+        # log_prob_tanh = torch.log(F.relu(1 - action.pow(2)) + epsilon)
+        # log_prob_action = self.base_dist.log_prob(u) + sum_log_abs_det_jacobians + log_prob_tanh
         return torch.sum(self.base_dist.log_prob(u) + sum_log_abs_det_jacobians, dim=1)
+        # return torch.sum(log_prob_action, dim=1)
 

@@ -182,7 +182,7 @@ class GridWorld(gym.Env):
 
         if self.t >= self.max_episode_len:
             self.done = True
-        
+
 
         line = Line(Point(self.state_temp[0]*self.scale+20,self.state_temp[1]*self.scale+20),Point(self.state[0]*self.scale+20,self.state[1]*self.scale+20))
 
@@ -207,7 +207,7 @@ class GridWorld(gym.Env):
             return PolyNoise(L_p = float(l_p),b_0 = float(b_0),action_dim =self.nb_actions,ou_noise = ou_noise,sigma = float(stddev))
         else:
             raise Exception("The exploration method "+ self.exploration +" is not defined!")
-        
+
 
 
     def create_walls(self):
@@ -314,6 +314,8 @@ class GridWorld(gym.Env):
         # Plot the dense rewards:
         for idx, mini_goal in enumerate(self.dense_goals):
             ax.scatter([mini_goal[0]],[mini_goal[1]], c='b')
+
+        fig.savefig('EnvCont.png', dpi=300) # maybe png
 
 
         # add the trajectory here
