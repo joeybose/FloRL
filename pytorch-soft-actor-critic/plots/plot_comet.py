@@ -97,6 +97,7 @@ def plot(**kwargs):
     labels = kwargs.get('labels')
     data = kwargs.get('data')
 
+    # Setup figure
     fig = plt.figure(figsize=(12, 8))
     ax = plt.subplot()
     for label in (ax.get_xticklabels()):
