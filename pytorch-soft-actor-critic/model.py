@@ -88,11 +88,14 @@ class GaussianPolicy(nn.Module):
         log_std = torch.clamp(log_std, min=LOG_SIG_MIN, max=LOG_SIG_MAX)
         return mean, log_std
 
-    def forward(self, state):
+    def forward(self, state, reparam = False):
         mean, log_std = self.encode(state)
         std = log_std.exp()
         normal = Normal(mean, std)
-        x_t = normal.sample()  # for reparameterization trick (mean + std * N(0,1))
+        if reparam == True:
+            x_t = normal.rsample()  # for reparameterization trick (mean + std * N(0,1))
+        else:
+            x_t = normal.sample()
         if self.tanh:
             action = torch.tanh(x_t)
         else:
@@ -122,16 +125,22 @@ class ExponentialPolicy(nn.Module):
         log_rate = self.rate_linear(x)
         return log_rate
 
-    def forward(self, state):
+    def forward(self, state, reparam = False):
         log_rate = self.encode(state)
         log_rate = torch.clamp(log_rate, min=LOG_SIG_MIN, max=LOG_SIG_MAX)
         rate = torch.exp(log_rate)
         exponential = Exponential(rate)
-        x_t = exponential.rsample()
+        # whether or not to use reparametrization trick
+        if reparam == True:
+            x_t = exponential.rsample()
+        else:
+            x_t = exponential.sample()
+        # whether or not to add tanh
         if self.tanh:
             action = torch.tanh(x_t)
         else:
             action = x_t
+
         log_prob = exponential.log_prob(x_t)
         mean = exponential.mean
         std = torch.sqrt(exponential.variance)
@@ -163,11 +172,18 @@ class LogNormalPolicy(nn.Module):
         log_std = torch.clamp(log_std, min=LOG_SIG_MIN, max=LOG_SIG_MAX)
         return mean, log_std
 
-    def forward(self, state):
+    def forward(self, state, reparam = False):
         mean, log_std = self.encode(state)
         std = torch.exp(log_std)
         log_normal = LogNormal(mean, std)
-        x_t = log_normal.rsample()
+
+        # whether or not to use reparametrization trick
+        if reparam == True:
+            x_t = log_normal.rsample()
+        else:
+            x_t = log_normal.sample()
+
+        # whether or not to add tanh
         if self.tanh:
             action = torch.tanh(x_t)
         else:
@@ -200,11 +216,16 @@ class LaplacePolicy(nn.Module):
         log_scale = torch.clamp(log_scale, min=LOG_SIG_MIN, max=LOG_SIG_MAX)
         return mean, log_scale
 
-    def forward(self, state):
+    def forward(self, state, reparam = False):
         mean, log_scale = self.encode(state)
         scale = torch.exp(log_scale)
         laplace = Laplace(mean, scale)
-        x_t = laplace.rsample()
+
+        if reparam == True:
+            x_t = laplace.rsample()
+        else:
+            x_t = laplace.sample()
+
         if self.tanh:
             action = torch.tanh(x_t)
         else:

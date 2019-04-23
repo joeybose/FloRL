@@ -120,13 +120,13 @@ class SAC(object):
             self.policy.train()
             if len(state.size()) > 2:
                 state = state.view(-1,self.num_inputs)
-            action, _, _, _, _ = self.policy(state)
+            action, _, _, _, _ = self.policy(state, reparam = self.reparam)
         else:
             self.policy.eval()
             if len(state.size()) > 2:
                 state = state.view(-1,self.num_inputs)
             if self.policy_type != 'Flow':
-                _, _, _, action, _ = self.policy(state)
+                _, _, _, action, _ = self.policy(state, reparam=self.reparam)
             else:
                 _, _, _, action, _ = self.policy.inverse(state)
             if self.policy_type == "Gaussian" or self.policy_type == "Exponential" or self.policy_type == "LogNormal" or self.policy_type == "Laplace":
@@ -156,7 +156,7 @@ class SAC(object):
         if self.policy_type == 'Flow':
             new_action, log_prob, _, mean, log_std = self.policy.inverse(state_batch)
         else:
-            new_action, log_prob, _, mean, log_std = self.policy(state_batch)
+            new_action, log_prob, _, mean, log_std = self.policy(state_batch, reparam=self.reparam)
 
         if self.policy_type == "Gaussian" or self.policy_type == "Exponential" or self.policy_type == "LogNormal" or self.policy_type == "Laplace" or self.policy_type == 'Flow':
             if self.automatic_entropy_tuning:
@@ -187,7 +187,7 @@ class SAC(object):
             """
             alpha_loss = torch.tensor(0.)
             alpha_logs = self.alpha  # For TensorboardX logs
-            next_state_action, _, _, _, _, = self.policy(next_state_batch)
+            next_state_action, _, _, _, _, = self.policy(next_state_batch, reparam =self.reparam)
             target_critic_1, target_critic_2 = self.critic_target(next_state_batch, next_state_action)
             target_critic = torch.min(target_critic_1, target_critic_2)
             next_q_value = reward_batch + mask_batch * self.gamma * (target_critic).detach()
@@ -214,7 +214,7 @@ class SAC(object):
             value_loss = F.mse_loss(expected_value, next_value.detach())
         else:
             pass
-
+        #ipdb.set_trace()
         # whether to use reparameterization trick or not
         if self.reparam == True:
             """
@@ -224,7 +224,7 @@ class SAC(object):
             Jπ = 𝔼st∼D,εt∼N[α * logπ(f(εt;st)|st) − Q(st,f(εt;st))]
             ∇Jπ = ∇log π + ([∇at (α * logπ(at|st)) − ∇at Q(st,at)])∇f(εt;st)
             """
-            policy_loss = ((self.alpha * log_prob) - expected_new_q_values).mean()
+            policy_loss = ((self.alpha * log_prob) - expected_new_q_value).mean()
         else:
             log_prob_target = expected_new_q_value - expected_value
             policy_loss = (log_prob * ((self.alpha * log_prob) - log_prob_target).detach() ).mean()

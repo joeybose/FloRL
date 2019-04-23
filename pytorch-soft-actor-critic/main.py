@@ -51,6 +51,7 @@ def main(args):
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
 
+    #ipdb.set_trace()
     # Agent
     agent = SAC(env.observation_space.shape[0], env.action_space, args)
 
@@ -65,7 +66,6 @@ def main(args):
 
     if args.debug:
         args.use_logger = False
-        ipdb.set_trace()
 
         # Check if settings file
     if os.path.isfile("settings.json"):
@@ -91,7 +91,8 @@ def main(args):
 
     for i_episode in itertools.count():
         state = env.reset()
-        traj.append(state)
+        if args.make_cont_grid:
+            traj.append(state)
 
         episode_reward = 0
         while True:
@@ -102,9 +103,10 @@ def main(args):
             time.sleep(.002)
             next_state, reward, done, _ = env.step(action)  # Step
             #Visual
-            traj.append(next_state)
-            if total_numsteps % 100 == 0 and total_numsteps != 0:
-                imp_states.append(next_state)
+            if args.make_cont_grid:
+                traj.append(next_state)
+                if total_numsteps % 100 == 0 and total_numsteps != 0:
+                    imp_states.append(next_state)
             mask = not done  # 1 for not done and 0 for done
             memory.push(state, action, reward, next_state, mask)  # Append transition to memory
             if len(memory) > args.batch_size:
@@ -150,7 +152,7 @@ def main(args):
             episode_reward = 0
             while True:
                 action = agent.select_action(state, eval=True)
-                next_state, reward, done, _ = env.step(action.squeeze())
+                next_state, reward, done, _ = env.step(action)
                 episode_reward += reward
 
                 state = next_state
@@ -186,7 +188,7 @@ if __name__ == '__main__':
     parser.add_argument('--gamma', type=float, default=0.99, metavar='G',
                         help='discount factor for reward (default: 0.99)')
     parser.add_argument('--tau', type=float, default=0.005, metavar='G',
-                        help='target smoothing coefficient(τ) (default: 0.005)')
+                        help='target smoothing coefficient (default: 0.005)')
     parser.add_argument('--lr', type=float, default=0.0003, metavar='G',
                         help='learning rate (default: 0.0003)')
     parser.add_argument('--alpha', type=float, default=0.1, metavar='G',
@@ -230,9 +232,14 @@ if __name__ == '__main__':
                         help='Whether to use a conditional model.')
     parser.add_argument('--no_batch_norm', action='store_true')
     parser.add_argument('--flow_model', default='maf', help='Which model to use: made, maf.')
-    parser.add_argument('--reparam', default = True, help = 'use reparameterization trick \
-                                                              or log trick to compute gradient')
-    parser.add_argument('--tanh', type=bool, default=True, help='Apply tanh to actions')
+    #pariser.add_argument('--reparam', default = True, help = 'use reparameterization trick \
+    #                                                          or log trick to compute gradient')
+
+    parser.add_argument('--reparam',dest='reparam',action='store_true')
+    parser.add_argument('--no-reparam',dest='reparam',action='store_false')
+
+    parser.add_argument('--tanh', dest='tanh', action='store_true')
+    parser.add_argument('--no-tanh', dest='tanh', action='store_false')
     ### for different gridworld environments
     parser.add_argument('--make_cont_grid', default=False, action='store_true',help='Make GridWorld')
     parser.add_argument("--smol",action="store_true",default=False,help='Change to a smaller sized gridworld')
@@ -240,6 +247,8 @@ if __name__ == '__main__':
     parser.add_argument("--twotiny",action="store_true",default=False,help='Change to 2x the smallest sized gridworld')
     parser.add_argument("--threetiny",action="store_true",default=False,help='Change to 3x the smallest sized gridworld')
     parser.add_argument("--silent",action="store_true",default=False,help='Display graphical output. Set to true when running on a server.')
+
+    parser.set_defaults(reparam=True, tanh=True)
 
     args = parser.parse_args()
     args.cond_label_size = None
