@@ -92,20 +92,26 @@ class GaussianPolicy(nn.Module):
         mean, log_std = self.encode(state)
         std = log_std.exp()
         normal = Normal(mean, std)
+
         if reparam == True:
             x_t = normal.rsample()  # for reparameterization trick (mean + std * N(0,1))
         else:
             x_t = normal.sample()
+
         if self.tanh:
             action = torch.tanh(x_t)
         else:
             action = x_t
 
         log_prob = normal.log_prob(x_t)
-        # Enforcing Action Bound
-        log_prob -= torch.log(1 - action.pow(2) + epsilon)
+
+        if self.tanh:
+            # Enforcing Action Bound
+            log_prob -= torch.log(1 - action.pow(2) + epsilon)
         log_prob = log_prob.sum(1, keepdim=True)
+
         return action, log_prob, x_t, mean, log_std
+
 
 class ExponentialPolicy(nn.Module):
     def __init__(self, num_inputs, num_actions, hidden_dim, args):
@@ -130,6 +136,7 @@ class ExponentialPolicy(nn.Module):
         log_rate = torch.clamp(log_rate, min=LOG_SIG_MIN, max=LOG_SIG_MAX)
         rate = torch.exp(log_rate)
         exponential = Exponential(rate)
+
         # whether or not to use reparametrization trick
         if reparam == True:
             x_t = exponential.rsample()
@@ -145,10 +152,13 @@ class ExponentialPolicy(nn.Module):
         mean = exponential.mean
         std = torch.sqrt(exponential.variance)
         log_std = torch.log(std)
-        # Enforcing Action Bound
-        log_prob -= torch.log(1 - action.pow(2) + epsilon)
+        if self.tanh:
+            # Enforcing Action Bound
+            log_prob -= torch.log(1 - action.pow(2) + epsilon)
         log_prob = log_prob.sum(1, keepdim=True)
+
         return action, log_prob, x_t, mean, log_std
+
 
 class LogNormalPolicy(nn.Module):
     def __init__(self, num_inputs, num_actions, hidden_dim, args):
@@ -158,7 +168,7 @@ class LogNormalPolicy(nn.Module):
         self.linear2 = nn.Linear(hidden_dim, hidden_dim)
 
         self.mean_linear = nn.Linear(hidden_dim, num_actions)
-        self.log_std_linear = nn.Linear(hidden_dim, num_actions)
+        self.std_linear = nn.Linear(hidden_dim, num_actions)
 
         self.apply(weights_init_)
 
@@ -168,13 +178,12 @@ class LogNormalPolicy(nn.Module):
         x = F.relu(self.linear1(state))
         x = F.relu(self.linear2(x))
         mean = self.mean_linear(x)
-        log_std = self.log_std_linear(x)
-        log_std = torch.clamp(log_std, min=LOG_SIG_MIN, max=LOG_SIG_MAX)
-        return mean, log_std
+        std = self.std_linear(x)
+        std = torch.clamp(std, min=0 , max=LOG_SIG_MAX) # standard deviation has to be > 0
+        return mean, std
 
     def forward(self, state, reparam = False):
-        mean, log_std = self.encode(state)
-        std = torch.exp(log_std)
+        mean, std = self.encode(state)
         log_normal = LogNormal(mean, std)
 
         # whether or not to use reparametrization trick
@@ -188,11 +197,20 @@ class LogNormalPolicy(nn.Module):
             action = torch.tanh(x_t)
         else:
             action = x_t
+
         log_prob = log_normal.log_prob(x_t)
-        # Enforcing Action Bound
-        log_prob -= torch.log(1 - action.pow(2) + epsilon)
+
+        if self.tanh:
+            # Enforcing Action Bound
+            log_prob -= torch.log(1 - action.pow(2) + epsilon)
         log_prob = log_prob.sum(1, keepdim=True)
+
+        # get mean and standard deviation of the distr
+        mean = log_normal.mean
+        std = torch.sqrt(log_normal.variance)
+        log_std = torch.log(std)
         return action, log_prob, x_t, mean, log_std
+
 
 class LaplacePolicy(nn.Module):
     def __init__(self, num_inputs, num_actions, hidden_dim, args):
@@ -230,13 +248,21 @@ class LaplacePolicy(nn.Module):
             action = torch.tanh(x_t)
         else:
             action = x_t
+
         log_prob = laplace.log_prob(x_t)
         std = torch.sqrt(laplace.variance)
         log_std = torch.log(std)
-        # Enforcing Action Bound
-        log_prob -= torch.log(1 - action.pow(2) + epsilon)
+
+        if self.tanh:
+            # Enforcing Action Bound
+            log_prob -= torch.log(1 - action.pow(2) + epsilon)
         log_prob = log_prob.sum(1, keepdim=True)
+
+        mean = laplace.mean
+        std = torch.sqrt(laplace.variance)
+        log_std = torch.log(std)
         return action, log_prob, x_t, mean, log_std
+
 
 class DeterministicPolicy(nn.Module):
     def __init__(self, num_inputs, num_actions, hidden_dim):

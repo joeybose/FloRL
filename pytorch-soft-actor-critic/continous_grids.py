@@ -23,20 +23,20 @@ class GridWorld(gym.Env):
     """
 
     def __init__(self,
-                 num_rooms = 0,
-                 start_position = (25.0, 25.0),
-                 goal_position = (75.0, 75.0),
-                 goal_reward = +100.0,
-                 dense_goals = [(35.0,25.0),(45.0,25.0),(55.0,25.0),(68.0,33.0),(75.0, 45.0),(75.0,55.0),(75.0,65.0)],
-                 dense_reward = +5,
-                 goal_radius = 1.0,
-                 per_step_penalty = -0.01,
-                 max_episode_len = 1000,
-                 grid_len = 100,
-                 wall_breadth = 1,
-                 door_breadth = 5,
-                 action_limit_max = 1.0,
-                 silent_mode = False):
+                 num_rooms=0,
+                 start_position=(25.0, 25.0),
+                 goal_position=(75.0, 75.0),
+                 goal_reward=+100.0,
+                 dense_goals=None,
+                 dense_reward=+5,
+                 goal_radius=1.0,
+                 per_step_penalty=-0.01,
+                 max_episode_len=1000,
+                 grid_len=100,
+                 wall_breadth=1,
+                 door_breadth=5,
+                 action_limit_max=1.0,
+                 silent_mode=False):
         """
         params:
         """

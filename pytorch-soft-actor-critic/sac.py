@@ -214,7 +214,6 @@ class SAC(object):
             value_loss = F.mse_loss(expected_value, next_value.detach())
         else:
             pass
-        #ipdb.set_trace()
         # whether to use reparameterization trick or not
         if self.reparam == True:
             """
@@ -268,7 +267,13 @@ class SAC(object):
             soft_update(self.critic_target, self.critic, self.tau)
         elif updates % self.target_update_interval == 0 and (self.policy_type == "Gaussian" or self.policy_type == "Exponential" or self.policy_type == "LogNormal"):
             soft_update(self.value_target, self.value, self.tau)
-        return value_loss.item(), q1_value_loss.item(), q2_value_loss.item(), policy_loss.item(), alpha_loss.item(), alpha_logs
+
+        # calculate the entropy
+        with torch.no_grad():
+            entropy = -(log_prob.mean())
+
+#        ipdb.set_trace() #alpha_loss.item()
+        return value_loss.item(), q1_value_loss.item(), q2_value_loss.item(), policy_loss.item(),entropy, alpha_logs
 
     # Save model parameters
     def save_model(self, env_name, suffix="", actor_path=None, critic_path=None, value_path=None):

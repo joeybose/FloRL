@@ -14,35 +14,44 @@ from normalized_actions import NormalizedActions
 from replay_memory import ReplayMemory
 from continous_grids import GridWorld
 
+
 def main(args):
     # Environment
     if args.make_cont_grid:
         if args.smol:
-            env = GridWorld(max_episode_len = 500,num_rooms=1,action_limit_max = 1.0, silent_mode = args.silent, \
-                            start_position = (8.0, 8.0),goal_position = (22.0, 22.0),goal_reward = +100.0, \
-                            dense_goals = [(13.0,8.0),(18.0,11.0),(20.0,15.0),(22.0, 19.0),], dense_reward = +5,\
-                            grid_len = 30)
+            dense_goals = []
+            if args.dense_goals:
+                dense_goals = [(13.0, 8.0), (18.0, 11.0), (20.0, 15.0), (22.0, 19.0)]
+            env = GridWorld(max_episode_len=500, num_rooms=1, action_limit_max=1.0, silent_mode=args.silent,
+                            start_position=(8.0, 8.0), goal_position=(22.0, 22.0), goal_reward=+100.0,
+                            dense_goals=dense_goals, dense_reward=+5,
+                            grid_len=30)
             env_name = "SmallGridWorld"
         elif args.tiny:
-            env = GridWorld(max_episode_len = 500,num_rooms=0,action_limit_max = 1.0, silent_mode = args.silent, \
-                            start_position = (5.0, 5.0),goal_position = (15.0, 15.0),goal_reward = +100.0, \
-                            dense_goals = [], dense_reward = +0,\
-                            grid_len = 20)
+            env = GridWorld(max_episode_len=500, num_rooms=0, action_limit_max=1.0, silent_mode=args.silent,
+                            start_position=(5.0, 5.0), goal_position=(15.0, 15.0), goal_reward=+100.0,
+                            dense_goals=[], dense_reward=+0,
+                            grid_len=20)
             env_name = "TinyGridWorld"
         elif args.twotiny:
-            env = GridWorld(max_episode_len = 500,num_rooms=1,action_limit_max = 1.0, silent_mode = args.silent, \
-                            start_position = (5.0, 5.0),goal_position = (15.0, 15.0),goal_reward = +100.0, \
-                            dense_goals = [], dense_reward = +0,\
-                            grid_len = 20, door_breadth = 3)
+            env = GridWorld(max_episode_len=500, num_rooms=1, action_limit_max=1.0, silent_mode=args.silent,
+                            start_position=(5.0, 5.0), goal_position=(15.0, 15.0), goal_reward=+100.0,
+                            dense_goals=[], dense_reward=+0,
+                            grid_len=20, door_breadth=3)
             env_name = "TwoTinyGridWorld"
         elif args.threetiny:
-            env = GridWorld(max_episode_len = 500,num_rooms=0,action_limit_max = 1.0, silent_mode = args.silent, \
-                            start_position = (8.0, 8.0),goal_position = (22.0, 22.0),goal_reward = +100.0, \
-                            dense_goals = [], dense_reward = +0,\
-                            grid_len = 30)
+            env = GridWorld(max_episode_len=500, num_rooms=0, action_limit_max=1.0, silent_mode=args.silent,
+                            start_position=(8.0, 8.0), goal_position=(22.0, 22.0), goal_reward=+100.0,
+                            dense_goals=[], dense_reward=+0,
+                            grid_len=30)
             env_name = "ThreeGridWorld"
         else:
-            env = GridWorld(max_episode_len = 1000, num_rooms=1,action_limit_max = 1.0, silent_mode = args.silent)
+            dense_goals = []
+            if args.dense_goals:
+                dense_goals = [(35.0, 25.0), (45.0, 25.0), (55.0, 25.0), (68.0, 33.0), (75.0, 45.0), (75.0, 55.0),
+                               (75.0, 65.0)]
+            env = GridWorld(max_episode_len=1000, num_rooms=1, action_limit_max=1.0, silent_mode=args.silent,
+                            dense_goals=dense_goals)
             env_name = "VeryLargeGridWorld"
     else:
         env = NormalizedActions(gym.make(args.env_name))
@@ -51,7 +60,6 @@ def main(args):
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
 
-    #ipdb.set_trace()
     # Agent
     agent = SAC(env.observation_space.shape[0], env.action_space, args)
 
@@ -67,7 +75,7 @@ def main(args):
     if args.debug:
         args.use_logger = False
 
-        # Check if settings file
+    # Check if settings file
     if os.path.isfile("settings.json"):
         with open('settings.json') as f:
                 data = json.load(f)
@@ -85,7 +93,7 @@ def main(args):
         args.experiment = experiment
 
     if args.make_cont_grid:
-        #The following lines are for visual purposes
+        # The following lines are for visual purposes
         traj = []
         imp_states = []
 
@@ -124,7 +132,7 @@ def main(args):
                         args.experiment.log_metric("Loss Critic 1",critic_1_loss,step=updates)
                         args.experiment.log_metric("Loss Critic 2",critic_2_loss,step=updates)
                         args.experiment.log_metric("Loss Policy",policy_loss,step=updates)
-                        args.experiment.log_metric("Loss Entropy",ent_loss,step=updates)
+                        args.experiment.log_metric("Entropy",ent_loss,step=updates)
                         args.experiment.log_metric("Entropy Temperature",alpha,step=updates)
                     updates += 1
 
@@ -150,7 +158,6 @@ def main(args):
         if i_episode % 10 == 0 and args.eval == True:
             state = torch.Tensor([env.reset()])
             episode_reward = 0
-            ipdb.set_trace()
             while True:
                 action = agent.select_action(state, eval=True)
                 next_state, reward, done, _ = env.step(action)
@@ -233,19 +240,24 @@ if __name__ == '__main__':
                         help='Whether to use a conditional model.')
     parser.add_argument('--no_batch_norm', action='store_true')
     parser.add_argument('--flow_model', default='maf', help='Which model to use: made, maf.')
+
     # flags for using reparameterization trick or not
     parser.add_argument('--reparam',dest='reparam',action='store_true')
     parser.add_argument('--no-reparam',dest='reparam',action='store_false')
     # flags for using a tanh activation or not
     parser.add_argument('--tanh', dest='tanh', action='store_true')
     parser.add_argument('--no-tanh', dest='tanh', action='store_false')
-    # flags for different gridworld environments
-    parser.add_argument('--make_cont_grid', default=False, action='store_true',help='Make GridWorld')
-    parser.add_argument("--smol",action="store_true",default=False,help='Change to a smaller sized gridworld')
-    parser.add_argument("--tiny",action="store_true",default=False,help='Change to the smallest sized gridworld')
-    parser.add_argument("--twotiny",action="store_true",default=False,help='Change to 2x the smallest sized gridworld')
-    parser.add_argument("--threetiny",action="store_true",default=False,help='Change to 3x the smallest sized gridworld')
-    parser.add_argument("--silent",action="store_true",default=False,help='Display graphical output. Set to true when running on a server.')
+    # For different gridworld environments
+    parser.add_argument('--make_cont_grid', default=False, action='store_true', help='Make GridWorld')
+    parser.add_argument('--dense_goals', default=False, action='store_true', help='Create sub-goals')
+    parser.add_argument("--smol", action="store_true", default=False, help='Change to a smaller sized gridworld')
+    parser.add_argument("--tiny", action="store_true", default=False, help='Change to the smallest sized gridworld')
+    parser.add_argument("--twotiny", action="store_true", default=False,
+                        help='Change to 2x the smallest sized gridworld')
+    parser.add_argument("--threetiny", action="store_true", default=False,
+                        help='Change to 3x the smallest sized gridworld')
+    parser.add_argument("--silent", action="store_true", default=False,
+                        help='Display graphical output. Set to true when running on a server.')
 
     parser.set_defaults(reparam=True, tanh=True)
 
