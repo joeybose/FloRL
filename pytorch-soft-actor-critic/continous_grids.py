@@ -277,7 +277,7 @@ class GridWorld(gym.Env):
                 return True
         return False
 
-    def vis_trajectory(self, traj, name_plot, imp_states=None, ):
+    def vis_trajectory(self, traj, name_plot, experiment_id=None, imp_states=None):
         """
         creates the trajectory and return the plot
 
@@ -326,6 +326,6 @@ class GridWorld(gym.Env):
         ax.set_title("grid")
         buf = io.BytesIO()
         # fig.savefig(buf, format='jpeg') # maybe png
-        fig.savefig('install/{}'.format(name_plot), dpi=300)  # maybe png
+        fig.savefig('install/{}_{}'.format(name_plot, experiment_id), dpi=300)  # maybe png
         buf.seek(0)
         return buf

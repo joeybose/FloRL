@@ -175,10 +175,9 @@ def main(args):
             print("Test Episode: {}, reward: {}".format(i_episode, test_rewards[-1]))
             print("----------------------------------------")
     if args.make_cont_grid:
-        #Visual
-        img = env.vis_trajectory(np.asarray(traj), args.namestr, np.asarray(imp_states))
         if args.comet:
-            args.experiment.log_image("%s.png"%(args.namestr), file_name=None, overwrite=False)
+            #Visual
+            env.vis_trajectory(np.asarray(traj), args.namestr, args.experiment.id, np.asarray(imp_states))
 
     env.close()
 
