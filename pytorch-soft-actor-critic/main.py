@@ -175,9 +175,11 @@ def main(args):
             print("Test Episode: {}, reward: {}".format(i_episode, test_rewards[-1]))
             print("----------------------------------------")
     if args.make_cont_grid:
+        experiment_id = None
         if args.comet:
-            #Visual
-            env.vis_trajectory(np.asarray(traj), args.namestr, args.experiment.id, np.asarray(imp_states))
+            experiment_id = args.experiment.id
+        #Visual
+        env.vis_trajectory(np.asarray(traj), args.namestr, experiment_id, np.asarray(imp_states))
 
     env.close()
 
