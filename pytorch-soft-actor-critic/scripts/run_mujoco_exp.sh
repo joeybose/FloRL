@@ -9,14 +9,14 @@ set -x
 
 # Run the following scripts in parallel:
 
-#COMET_DISABLE_AUTO_LOGGING=1 python main.py --namestr=G-HC --env-name HalfCheetah-v1 --batch_size=1024 --policy=Exponential --seed=0 --comet &
-#COMET_DISABLE_AUTO_LOGGING=1 python main.py --namestr=G-HC --env-name HalfCheetah-v1 --batch_size=1024 --policy=Exponential --seed=0 --comet &
+#COMET_DISABLE_AUTO_LOGGING=1 python main.py --namestr=E-HC --env-name HalfCheetah-v1 --batch_size=1024 --policy=Exponential --seed=0 --comet &
+#COMET_DISABLE_AUTO_LOGGING=1 python main.py --namestr=E-HC --env-name HalfCheetah-v1 --batch_size=1024 --policy=Exponential --seed=0 --comet &
 
-#COMET_DISABLE_AUTO_LOGGING=1 python main.py --namestr=G-NT-HC --env-name HalfCheetah-v1 --batch_size=1024 --policy=Exponential --seed=0 --tanh_off --comet &
-#COMET_DISABLE_AUTO_LOGGING=1 python main.py --namestr=G-NT-HC --env-name HalfCheetah-v1 --batch_size=1024 --policy=Exponential --seed=0 --tanh_off --comet &
+COMET_DISABLE_AUTO_LOGGING=1 python main.py --namestr=E-NT-HC --env-name HalfCheetah-v1 --batch_size=1024 --policy=Exponential --seed=0 --no-tanh --comet &
+COMET_DISABLE_AUTO_LOGGING=1 python main.py --namestr=E-NT-HC --env-name HalfCheetah-v1 --batch_size=1024 --policy=Exponential --seed=0 --no-tanh --comet &
 
-#python main.py --namestr=G-LL --env-name LunarLanderContinuous-v2 --batch_size=1024 --policy=Exponential --seed=3 --comet &
-#python main.py --namestr=G-LL --env-name LunarLanderContinuous-v2 --batch_size=1024 --policy=Exponential --seed=3 --comet
+#python main.py --namestr=E-LL --env-name LunarLanderContinuous-v2 --batch_size=1024 --policy=Exponential --seed=3 --comet &
+#python main.py --namestr=E-LL --env-name LunarLanderContinuous-v2 --batch_size=1024 --policy=Exponential --seed=3 --comet
 
-#python main.py --namestr=G-NT-LL --env-name LunarLanderContinuous-v2 --batch_size=1024 --policy=Exponential --seed=3 --tanh_off --comet &
-#python main.py --namestr=G-NT-LL --env-name LunarLanderContinuous-v2 --batch_size=1024 --policy=Exponential --seed=3 --tanh_off --comet
+#python main.py --namestr=E-NT-LL --env-name LunarLanderContinuous-v2 --batch_size=1024 --policy=Exponential --seed=3 --tanh_off --comet &
+#python main.py --namestr=E-NT-LL --env-name LunarLanderContinuous-v2 --batch_size=1024 --policy=Exponential --seed=3 --tanh_off --comet
