@@ -179,7 +179,9 @@ def main(args):
         if args.comet:
             experiment_id = args.experiment.id
         #Visual
-        env.vis_trajectory(np.asarray(traj), args.namestr, experiment_id, np.asarray(imp_states))
+        img = env.vis_trajectory(np.asarray(traj), args.namestr, experiment_id, np.asarray(imp_states))
+        if args.comet:
+            args.experiment.log_image('install/{}_{}.png'.format(args.namestr, experiment_id), file_name=None, overwrite=False)
 
     env.close()
 
