@@ -330,14 +330,14 @@ class GridWorld(gym.Env):
         # fig.savefig(buf, format='jpeg') # maybe png
         fig.savefig('install/{}_{}'.format(name_plot, experiment_id), dpi=300)  # maybe png
 
-    def test_vis_trajectory(self, traj, name_plot, experiment_id=None):
+    def test_vis_trajectory(self, traj, name_plot, heatmap_title, experiment_id=None):
 
         # Trajectory heatmap
         x = np.array([point[0] for point in traj])
         y = np.array([point[1] for point in traj])
 
         # Save heatmap for different bin scales
-        for num in range(1, 5):
+        for num in range(1, 6):
             fig, ax = plt.subplots()
 
             bin_scale = num * 0.1
@@ -351,6 +351,6 @@ class GridWorld(gym.Env):
             start_circle = plt.Circle((self.start_position[0] * self.scale + 20, self.start_position[1] * self.scale + 20),
                            self.goal_radius * self.scale)
 
-            ax.set_title('Continuous GridWorld Trajectories')
+            ax.set_title(heatmap_title)
             plt.savefig('install/{}_{}_{}.pdf'.format(name_plot, experiment_id, num))
 
