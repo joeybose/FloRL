@@ -335,17 +335,22 @@ class GridWorld(gym.Env):
         # Trajectory heatmap
         x = np.array([point[0] for point in traj])
         y = np.array([point[1] for point in traj])
-        fig, ax = plt.subplots()
-        h = ax.hist2d(x, y, bins=[np.arange(self.min_position, self.max_position, 0.5),
-                                  np.arange(self.min_position, self.max_position, 0.5)],
-                      cmap='magma')
-        image = h[3]
-        plt.colorbar(image, ax=ax)
 
-        # Build graph barriers and start and goal positions
-        start_circle = plt.Circle((self.start_position[0] * self.scale + 20, self.start_position[1] * self.scale + 20),
-                       self.goal_radius * self.scale)
+        # Save heatmap for different bin scales
+        for num in range(1, 5):
+            fig, ax = plt.subplots()
 
-        ax.set_title('Continuous GridWorld Trajectories')
-        plt.savefig('install/{}_{}.pdf'.format(name_plot, experiment_id))
+            bin_scale = num * 0.1
+            h = ax.hist2d(x, y, bins=[np.arange(self.min_position, self.max_position, bin_scale),
+                                      np.arange(self.min_position, self.max_position, bin_scale)],
+                          cmap='magma')
+            image = h[3]
+            plt.colorbar(image, ax=ax)
+
+            # Build graph barriers and start and goal positions
+            start_circle = plt.Circle((self.start_position[0] * self.scale + 20, self.start_position[1] * self.scale + 20),
+                           self.goal_radius * self.scale)
+
+            ax.set_title('Continuous GridWorld Trajectories')
+            plt.savefig('install/{}_{}_{}.pdf'.format(name_plot, experiment_id, num))
 
