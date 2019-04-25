@@ -337,7 +337,7 @@ class GridWorld(gym.Env):
         y = np.array([point[1] for point in traj])
 
         # Save heatmap for different bin scales
-        for num in range(1, 5):
+        for num in range(1, 6):
             fig, ax = plt.subplots()
 
             bin_scale = num * 0.1
