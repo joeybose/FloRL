@@ -179,7 +179,7 @@ def main(args):
         if args.comet:
             experiment_id = args.experiment.id
         #Visual
-        img = env.vis_trajectory(np.asarray(traj), args.namestr, experiment_id, np.asarray(imp_states))
+        env.vis_trajectory(np.asarray(traj), args.namestr, experiment_id, np.asarray(imp_states))
 
     env.close()
 

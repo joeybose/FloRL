@@ -324,8 +324,5 @@ class GridWorld(gym.Env):
         # return the image buff
 
         ax.set_title("grid")
-        buf = io.BytesIO()
         # fig.savefig(buf, format='jpeg') # maybe png
         fig.savefig('install/{}_{}'.format(name_plot, experiment_id), dpi=300)  # maybe png
-        buf.seek(0)
-        return buf
