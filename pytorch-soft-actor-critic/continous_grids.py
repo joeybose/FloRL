@@ -3,7 +3,9 @@ code from here: https://github.com/junhyukoh/value-prediction-network/blob/maste
 """
 
 import copy
-import io
+import pandas as pd
+
+import seaborn as sns
 
 import gym.spaces
 import matplotlib.patches as patches
@@ -82,6 +84,7 @@ class GridWorld(gym.Env):
         self.create_walls()
         self.scale = 5
 
+        # This code enables live visualization of trajectories
         # Susan added these lines for visual purposes
         if not self.silent_mode:
             self.win1 = GraphWin("2DGrid", self.max_position * self.scale + 40, self.max_position * self.scale + 40)
@@ -326,3 +329,34 @@ class GridWorld(gym.Env):
         ax.set_title("grid")
         # fig.savefig(buf, format='jpeg') # maybe png
         fig.savefig('install/{}_{}'.format(name_plot, experiment_id), dpi=300)  # maybe png
+
+    def test_vis_trajectory(self, traj, name_plot, experiment_id=None):
+
+        # Set plotting style
+        sns.set_context('paper', font_scale=1.3)
+        sns.set_style({"savefig.dpi": 300})
+
+        # plot
+
+        #Flights example
+        # flights = sns.load_dataset("flights")
+        # flights = flights.pivot("month", "year", "passengers")
+        # ax = sns.heatmap(flights)
+
+        # traj = pd.DataFrame(traj)
+        # ax.set_title("Continuous GridWorld Trajectory")
+        #
+        # fig = ax.get_figure()
+        # fig.set_size_inches(15, 20)
+        # fig.savefig('install/{}_{}.pdf'.format(name_plot, experiment_id))
+
+
+
+        x = np.array([point[0] for point in traj])
+        y = np.array([point[1] for point in traj])
+
+        plt.hist2d(x, y, bins=[np.arange(self.min_position, self.max_position, 0.5),
+                               np.arange(self.min_position, self.max_position, 0.5)])
+
+        plt.savefig('install/{}_{}.pdf'.format(name_plot, experiment_id))
+
