@@ -180,7 +180,7 @@ def main(args):
             experiment_id = args.experiment.id
         #Visual
         # env.vis_trajectory(np.asarray(traj), args.namestr, experiment_id, np.asarray(imp_states))
-        env.test_vis_trajectory(np.asarray(traj), args.namestr, experiment_id)
+        env.test_vis_trajectory(np.asarray(traj), args.namestr, args.heatmap_title, experiment_id)
 
     env.close()
 
@@ -260,6 +260,7 @@ if __name__ == '__main__':
                         help='Change to 3x the smallest sized gridworld')
     parser.add_argument("--silent", action="store_true", default=False,
                         help='Display graphical output. Set to true when running on a server.')
+    parser.add_argument('--heatmap_title', default='Continuous GridWorld Trajectories')
 
     parser.set_defaults(reparam=True, tanh=True)
 
