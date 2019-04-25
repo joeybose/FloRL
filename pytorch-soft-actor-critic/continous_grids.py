@@ -332,31 +332,20 @@ class GridWorld(gym.Env):
 
     def test_vis_trajectory(self, traj, name_plot, experiment_id=None):
 
-        # Set plotting style
-        sns.set_context('paper', font_scale=1.3)
-        sns.set_style({"savefig.dpi": 300})
-
-        # plot
-
-        #Flights example
-        # flights = sns.load_dataset("flights")
-        # flights = flights.pivot("month", "year", "passengers")
-        # ax = sns.heatmap(flights)
-
-        # traj = pd.DataFrame(traj)
-        # ax.set_title("Continuous GridWorld Trajectory")
-        #
-        # fig = ax.get_figure()
-        # fig.set_size_inches(15, 20)
-        # fig.savefig('install/{}_{}.pdf'.format(name_plot, experiment_id))
-
-
-
+        # Trajectory heatmap
         x = np.array([point[0] for point in traj])
         y = np.array([point[1] for point in traj])
+        fig, ax = plt.subplots()
+        h = ax.hist2d(x, y, bins=[np.arange(self.min_position, self.max_position, 0.5),
+                                  np.arange(self.min_position, self.max_position, 0.5)],
+                      cmap='magma')
+        image = h[3]
+        plt.colorbar(image, ax=ax)
 
-        plt.hist2d(x, y, bins=[np.arange(self.min_position, self.max_position, 0.5),
-                               np.arange(self.min_position, self.max_position, 0.5)])
+        # Build graph barriers and start and goal positions
+        start_circle = plt.Circle((self.start_position[0] * self.scale + 20, self.start_position[1] * self.scale + 20),
+                       self.goal_radius * self.scale)
 
+        ax.set_title('Continuous GridWorld Trajectories')
         plt.savefig('install/{}_{}.pdf'.format(name_plot, experiment_id))
 
