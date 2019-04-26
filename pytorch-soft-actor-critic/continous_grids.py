@@ -333,24 +333,44 @@ class GridWorld(gym.Env):
     def test_vis_trajectory(self, traj, name_plot, heatmap_title, experiment_id=None):
 
         # Trajectory heatmap
-        x = np.array([point[0] for point in traj])
-        y = np.array([point[1] for point in traj])
+        x = np.array([point[0] * self.scale for point in traj])
+        y = np.array([point[1] * self.scale for point in traj])
 
         # Save heatmap for different bin scales
-        for num in range(1, 6):
+        for num in range(2, 6):
             fig, ax = plt.subplots()
 
-            bin_scale = num
+            bin_scale = num * 0.1
 
-            h = ax.hist2d(x, y, bins=[np.arange(self.min_position * self. scale, self.max_position * self.scale, num),
-                                      np.arange(self.min_position * self. scale, self.max_position * self.scale, num)],
+            h = ax.hist2d(x, y, bins=[np.arange(self.min_position * self.scale,
+                                                self.max_position * self.scale, num),
+                                      np.arange(self.min_position * self.scale,
+                                                self.max_position * self.scale, num)],
                           cmap='Blues')
             image = h[3]
             plt.colorbar(image, ax=ax)
 
             # Build graph barriers and start and goal positions
-            start_circle = plt.Circle((self.start_position[0] * self.scale + 20, self.start_position[1] * self.scale + 20),
-                                       self.goal_radius * self.scale)
+            start_point = (self.start_position[0] * self.scale, self.start_position[1] * self.scale)
+            radius = self.goal_radius * self.scale / 2
+            start_circle = patches.Circle(start_point, radius,
+                                          facecolor='gold', edgecolor='black', lw=0.5, zorder=10)
+
+            goal_point = (self.goal_position[0] * self.scale, self.goal_position[1] * self.scale)
+            goal_circle = patches.Circle(goal_point, radius,
+                                         facecolor='maroon', edgecolor='black', lw=0.5, zorder=10)
+            
+            for idx, dense_goal in enumerate(self.dense_goals):
+                dense_goal_point = (dense_goal[0] * self.scale, dense_goal[1] * self.scale)
+                dense_goal_circle = patches.Circle(dense_goal_point, radius,
+                                                   facecolor='coral', edgecolor='black', lw=0.5, zorder=10)
+                ax.add_patch(dense_goal_circle)
+
+            ax.add_patch(start_circle)
+            ax.add_patch(goal_circle)
+
+            # if self.num_rooms == 1:
+            #
 
             ax.set_title(heatmap_title)
             plt.savefig('install/{}_{}_{}.pdf'.format(name_plot, experiment_id, num))
