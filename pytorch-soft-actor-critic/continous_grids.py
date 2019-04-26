@@ -358,19 +358,42 @@ class GridWorld(gym.Env):
 
             goal_point = (self.goal_position[0] * self.scale, self.goal_position[1] * self.scale)
             goal_circle = patches.Circle(goal_point, radius,
-                                         facecolor='maroon', edgecolor='black', lw=0.5, zorder=10)
+                                         facecolor='brown', edgecolor='black', lw=0.5, zorder=10)
             
             for idx, dense_goal in enumerate(self.dense_goals):
                 dense_goal_point = (dense_goal[0] * self.scale, dense_goal[1] * self.scale)
                 dense_goal_circle = patches.Circle(dense_goal_point, radius,
-                                                   facecolor='coral', edgecolor='black', lw=0.5, zorder=10)
+                                                   facecolor='crimson', edgecolor='black', lw=0.5, zorder=10)
                 ax.add_patch(dense_goal_circle)
 
             ax.add_patch(start_circle)
             ax.add_patch(goal_circle)
 
-            # if self.num_rooms == 1:
-            #
+            if self.num_rooms == 1:
+                wall1_xy = (self.min_position * self.scale,
+                            self.max_position/2 * self.scale - self.wall_breadth * self.scale)
+                wall1_width = (self.max_position/2 - self.min_position) * self.scale
+                wall1_height = 2 * self.wall_breadth * self.scale
+                wall1_rect = patches.Rectangle(xy=wall1_xy, width=wall1_width, height=wall1_height,
+                                               facecolor='grey', zorder=10)
+
+                wall2_xy = (self.max_position/2 * self.scale - self.wall_breadth * self.scale,
+                            self.min_position * self.scale)
+                wall2_width = 2 * self.wall_breadth * self.scale
+                wall2_height = (self.max_position/4 - self.door_breadth - self.min_position) * self.scale
+                wall2_rect = patches.Rectangle(xy=wall2_xy, width=wall2_width, height=wall2_height,
+                                               facecolor='grey', zorder=10)
+
+                wall3_xy = ((self.max_position/2 - self.wall_breadth) * self.scale,
+                            (self.max_position/4 + self.door_breadth) * self.scale)
+                wall3_width = 2 * self.wall_breadth * self.scale
+                wall3_height = (self.max_position/2 + self.wall_breadth - self.max_position/4 - self.door_breadth) * self.scale
+                wall3_rect = patches.Rectangle(xy=wall3_xy, width=wall3_width, height=wall3_height,
+                                               facecolor='grey', zorder=10)
+
+                ax.add_patch(wall1_rect)
+                ax.add_patch(wall2_rect)
+                ax.add_patch(wall3_rect)
 
             ax.set_title(heatmap_title)
             plt.savefig('install/{}_{}_{}.pdf'.format(name_plot, experiment_id, num))
