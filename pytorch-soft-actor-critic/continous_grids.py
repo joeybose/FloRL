@@ -330,7 +330,7 @@ class GridWorld(gym.Env):
         # fig.savefig(buf, format='jpeg') # maybe png
         fig.savefig('install/{}_{}'.format(name_plot, experiment_id), dpi=300)  # maybe png
 
-    def test_vis_trajectory(self, traj, name_plot, heatmap_title, experiment_id=None):
+    def test_vis_trajectory(self, traj, name_plot, heatmap_title, experiment_id=None, heatmap_normalize=False):
 
         # Trajectory heatmap
         x = np.array([point[0] * self.scale for point in traj])
@@ -346,7 +346,7 @@ class GridWorld(gym.Env):
                                                 self.max_position * self.scale, num),
                                       np.arange(self.min_position * self.scale,
                                                 self.max_position * self.scale, num)],
-                          cmap='Blues')
+                          cmap='Blues', normed=heatmap_normalize)
             image = h[3]
             plt.colorbar(image, ax=ax)
 
