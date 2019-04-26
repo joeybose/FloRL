@@ -340,16 +340,17 @@ class GridWorld(gym.Env):
         for num in range(1, 6):
             fig, ax = plt.subplots()
 
-            bin_scale = num * 0.1
-            h = ax.hist2d(x, y, bins=[np.arange(self.min_position, self.max_position, bin_scale),
-                                      np.arange(self.min_position, self.max_position, bin_scale)],
-                          cmap='magma')
+            bin_scale = num
+
+            h = ax.hist2d(x, y, bins=[np.arange(self.min_position * self. scale, self.max_position * self.scale, num),
+                                      np.arange(self.min_position * self. scale, self.max_position * self.scale, num)],
+                          cmap='Blues')
             image = h[3]
             plt.colorbar(image, ax=ax)
 
             # Build graph barriers and start and goal positions
             start_circle = plt.Circle((self.start_position[0] * self.scale + 20, self.start_position[1] * self.scale + 20),
-                           self.goal_radius * self.scale)
+                                       self.goal_radius * self.scale)
 
             ax.set_title(heatmap_title)
             plt.savefig('install/{}_{}_{}.pdf'.format(name_plot, experiment_id, num))
