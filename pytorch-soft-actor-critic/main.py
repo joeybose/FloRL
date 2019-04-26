@@ -180,7 +180,8 @@ def main(args):
             experiment_id = args.experiment.id
         #Visual
         # env.vis_trajectory(np.asarray(traj), args.namestr, experiment_id, np.asarray(imp_states))
-        env.test_vis_trajectory(np.asarray(traj), args.namestr, args.heatmap_title, experiment_id, args.heatmap_normalize)
+        env.test_vis_trajectory(np.asarray(traj), args.namestr, args.heatmap_title, experiment_id,
+                                args.heatmap_normalize, args.heatmap_vertical_clip_value)
 
     env.close()
 
@@ -262,6 +263,7 @@ if __name__ == '__main__':
                         help='Display graphical output. Set to true when running on a server.')
     parser.add_argument('--heatmap_title', default='Continuous GridWorld Trajectories')
     parser.add_argument('--heatmap_normalize', default=False, action='store_true')
+    parser.add_argument('--heatmap_vertical_clip_value', type=int, default=2500)
 
     parser.set_defaults(reparam=True, tanh=True)
 
