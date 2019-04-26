@@ -1,5 +1,6 @@
 import argparse
 import os
+import pickle
 import time
 from comet_ml import Experiment
 import json
@@ -84,6 +85,7 @@ def main(args):
     else:
         raise NotImplementedError
 
+    experiment_id = None
     if args.comet:
         experiment = Experiment(api_key=args.comet_apikey,\
         project_name="florl",auto_output_logging="None",\
@@ -91,6 +93,7 @@ def main(args):
         auto_param_logging=False)
         experiment.set_name(args.namestr)
         args.experiment = experiment
+        experiment_id = experiment.id
 
     if args.make_cont_grid:
         # The following lines are for visual purposes
@@ -113,8 +116,17 @@ def main(args):
             #Visual
             if args.make_cont_grid:
                 traj.append(next_state)
-                if total_numsteps % 100 == 0 and total_numsteps != 0:
+                if total_numsteps % 10000 == 0 and total_numsteps != 0:
                     imp_states.append(next_state)
+
+                    # Save current trajectories to JSON
+                    filename = 'run_data/{}_{}_{}_{}_{}.txt'.format(args.policy, args.env_name,
+                                                                    experiment_id, args.namestr, total_numsteps)
+                    with open(filename, 'wb') as f:
+                        pickle.dump(traj, f)
+
+
+
             mask = not done  # 1 for not done and 0 for done
             memory.push(state, action, reward, next_state, mask)  # Append transition to memory
             if len(memory) > args.batch_size:
@@ -175,11 +187,14 @@ def main(args):
             print("Test Episode: {}, reward: {}".format(i_episode, test_rewards[-1]))
             print("----------------------------------------")
     if args.make_cont_grid:
-        experiment_id = None
-        if args.comet:
-            experiment_id = args.experiment.id
         #Visual
         # env.vis_trajectory(np.asarray(traj), args.namestr, experiment_id, np.asarray(imp_states))
+
+        # Save final trajectories to JSON
+        filename = 'run_data/finalrun_{}_{}_{}_{}_{}.txt'.format(args.policy, args.env_name,
+                                                        experiment_id, args.namestr, total_numsteps)
+        with open(filename, 'wb') as f:
+            pickle.dump(traj, f)
         env.test_vis_trajectory(np.asarray(traj), args.namestr, args.heatmap_title, experiment_id,
                                 args.heatmap_normalize, args.heatmap_vertical_clip_value)
 
@@ -190,7 +205,7 @@ if __name__ == '__main__':
     Process command-line arguments, then call main()
     """
     parser = argparse.ArgumentParser(description='PyTorch REINFORCE example')
-    parser.add_argument('--env-name', default="HalfCheetah-v2",
+    parser.add_argument('--env-name', default=None,
                         help='name of the environment to run')
     parser.add_argument('--policy', default="Gaussian",
                         help='algorithm to use: Gaussian | Deterministic')
