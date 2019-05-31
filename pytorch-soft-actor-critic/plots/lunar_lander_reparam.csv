@@ -1,6 +1,0 @@
-﻿
-filename,LunarLanderContinuous-v2
-experiment:Gaussian tanh,ba3acea3a8b44ee3be18ef4e8665ab78,1d9f1518d0c14dd38b70e6c45455c814,0ee676362f5d464eac18320a7c22d4d4
-xlabel,Steps
-ylabel,Rewards
-metric,Test Reward

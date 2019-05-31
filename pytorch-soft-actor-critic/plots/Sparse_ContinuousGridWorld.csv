@@ -1,6 +1,0 @@
-﻿
-filename,Sparse ContinuousGridWorld
-experiment:Gaussian,15985a2769864efd822cd825d791b8a6
-xlabel,Steps
-ylabel,Rewards
-metric,Test Reward

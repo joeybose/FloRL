@@ -1,6 +1,0 @@
-﻿
-filename,Dense ContinuousGridWorld_exp
-experiment:Exponential,f8bdaf3b55ea4c0f91848128fb536a41,41a9a005da534eb48d2fb6c6befc8c8a,a316404d8e7d46c5b53d92080c7a6744
-xlabel,Steps
-ylabel,Rewards
-metric,Test Reward
